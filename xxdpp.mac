@@ -83,7 +83,7 @@
 ;	thought I should start paying rent. I crawled endlessly through
 ;	diagnostics, looking for tiny clues. Joerg Hoppe's extensive XXDP
 ;	microfiche contributions to bitsavers included some critical sources.
-;	A sometime DEC diagnostic programmer, Michael Morony, who visited 
+;	A sometime DEC diagnostic programmer, Michael Moroney, who visited 
 ;	alt.sys.pdp11 some years ago, was kind enough to dig up and send 	
 ;	me a copy of MACROM.MAC, the XXDP+ system macro module, which was 
 ;	truly invaluable: I had "names" for the system services. There have
