@@ -1,30 +1,99 @@
-.title	XXDPP - XXDP+ Operating System Monitor 		(source rescue)
-.include "lib:rust"
-loc$c=0
+.title	XXDPP - XXDP+ Operating System Monitor
+.nlist	ttm
 
 ;	XXDPP.MAC reconstructs the XXDP+ operating system source
 ;
-;	CHMDLD0 XXDP+ DL MONITOR
-;	HMDLD0.SYS
-;
-;	Build Procedure (RUST/RT-11):
+;	Build procedure (RUST/RT-11):
 ;
 ;	%build
-;	set error none
 ;	macro xds:xxdpp/object:xdb:
-;	!macro xds:xxdpp/object:xdb:/list:xdb:
-;	!macro xds:xxdpp/noobject/list:xdb:xxdpw
-;	set error error
-;	!link xdb:xxdpp/exe:xdb:XXDPP.BIN/lda
-;	link xdb:xxdpp/exe:xdb:XXDPP/map:xdb:/cross/nobit
+;	macro xds:xxdpp/object:xdb:/noobject/list:xdb:
+;	r detab
+;	xdb:xxdpp.lst xdb:xxdppw.lst
+;	^C
+;	link xdb:xxdpp/exe:xdb:xxdpp/map:xdb:/cross/nobitmap
 ;	%end
 ;
 ;	Edit History:
 ;
 ;    01 01-Jan-2000 IJH	Disassemble and study XXDP+
 ;    02 0n-Mar-2021 IJH	Complete initial source code recovery
+;	
+;	Source introduction:
 ;
-;	API Reference:
+;	XXDP was/is the diagnostic operating system for PDP-11 computers.
+;	This source file was created by reverse assembling the binary
+;	image of the XXDP+ HMDLD0 monitor found on XXDP23 distribution.
+;
+;	XXDP constitutes the de factor definition of the PDP-11, as
+;	anyone who writes an emulator soon finds out. It's the toughest
+;	the PDP-11 systems, case-hardened by its use on only partially 
+;	functioning systems.
+;
+;	XXDP's architecture is based on a simple, near-boolean level
+;	state machine. There is rarely any analytic vagueness regarding
+;	system state.
+;
+;	XXDP has a remarkably flat structure. Registers rarely need
+;	to be saved/restored across routines (less than 10 instances).
+;	All parameters and results are passed in registers, obeying
+;	a strict usage protocol.
+;
+;	Because of the fixed space restrictions placed on the monitor,
+;	code compression was always required to find space for new
+;	functionality. XXDP uses many software techniques to achieve
+;	that goal. The code is heavily compressed.
+;
+;	One overarching simplification is the almost complete absence of
+;	sanity testing. It will accept any disk volume as an XXDP volume,
+;	no matter how crazy the directory structure might appear. It tests
+;	only for conditions that make it impossible to continue.
+;
+;	The original XXDP+ would of course have had separate source modules
+;	for the monitor and the various drivers. For this stage of the
+;	recovery process I've thought it best to have everything in a single
+;	source module with no external dependencies.
+;
+;	The monitor source code translation is complete with this release.
+;	However, the documentation requires a programmer's guide and a system
+;	logic manual, at some distant point in time. For clarity I have
+;	not used macro definitions for system EMT calls in this, preferring
+;	to see all the binary code instructions. A later release should
+;	employ macros for system calls. The comments can also be improved.
+;
+;	The XXDP monitor itself is restricted to read-only support for
+;	system media. The other half of the system, that creates and writes
+;	files, is buried in a DRVCOM package that are embedded in the UPD1,
+;	UPD2, PATCH and XTECO utilities and the stand-alone drivers.
+;
+;	I began looking at XXDP around year 2000 when I used it to test
+;	a PDP-11 emulator I'd written. I got curious and wrote a simple
+;	disassembler and began annotating it (which I came back to in
+;	2010 and 2015). At first I approached the project as an act of 
+;	diligence: I thought the source was important for the history of
+;	the PDP-11. However, it turned out to be a fascinating task and
+;	it was a real joy to see the operating system as a whole slowly
+;	emerge. There were so many subtleties to be discovered. There's 
+;	some horrible HELLO WORLD coding here and there, but most of it
+;	is tight and the state machine design is highly disciplined.
+;
+;	Some grateful acknowledgements:
+;
+;	I spent so much time in Al Kossow's amazing bitsavers.org that I 
+;	thought I should start paying rent. I crawled endlessly through
+;	diagnostics, looking for tiny clues. Joerg Hoppe's extensive XXDP
+;	microfiche contributions to bitsavers included some critical sources.
+;	A sometime DEC diagnostic programmer, Michael Morony, who visited 
+;	alt.sys.pdp11 some years ago, was kind enough to dig up and send 	
+;	me a copy of MACROM.MAC, the XXDP+ system macro module, which was 
+;	truly invaluable: I had "names" for the system services. There have
+;	been quite a few valuable websites that have dedicated time and space
+;	to XXDP over the years from which I have gleaned information.
+.sbttl	XXDP API						(data)
+
+;	I've renamed the system services to reflect their functional
+;	role within the monitor. The original service names are listed
+;	in the MACROM column
 ;
 ;  EMT	XXDPP	MACROM	Function
 ;  ---	------	------	--------
@@ -65,7 +134,6 @@ loc$c=0
 ;  042  GetCom  Comm	Get monitor information common
 ;  043  GetDrv  Rdrive	Copy the system driver
 ;  044  TypBrk  FrcTyp	Type breakthrough message
-.sbttl	XXDP EMT System Services API				(data)
 
 	.MACRO	API NAM COD
 	 .macro	nam
@@ -73,95 +141,43 @@ loc$c=0
 	 .endm
 	.ENDM
 
-			; in		out
 	API GetLin 0	;
-	API ParFld 1	;		r0->fld,r1=ter	br eof
-	API TypMon 2	; r0->msg
-	API TypMsg 3	; r0->msg
-	API PutChk 4	; r0=cha
-	API GetAvl 5	;		r0=cha
-	API GetChk 6	;		r0=cha
+	API ParFld 1	;
+	API TypMon 2	;
+	API TypMsg 3	;
+	API PutChk 4	;
+	API GetAvl 5	;
+	API GetChk 6	;
 	API NewLin 7	;
 	API PutTab 10	;
-	API ParOct 11	;		r0=val
-	API OpnFil 12	; r0->spc
+	API ParOct 11	;
+	API OpnFil 12	;
 	API CloFil 13	;
-	API LoaFil 14	; r0->nam,r1=adr
-	API ReaWrd 15	;		r0=wrd
-	API ReaByt 16	;		r0=byt
-	API PutCha 17	; r0=cha
+	API LoaFil 14	;
+	API ReaWrd 15	;
+	API ReaByt 16	;
+	API PutCha 17	;
 	API ReaNxt 20	;
 	API ReaBlk 21	;
-	API SetAbt 22	; r0=adr
-	API JmpAbt 23	;		r0->msg
-	API CmpSpc 24	; r0=wld,r2=spc	
-	API SpcAsc 25	; r0=spc,r2=asc
-	API SetLin 26	; r0=adr,r1=len
-	API GetDat 27	;		r0=dat
-	API OctAsc 30	; r0=val,r1=adr
-	API GetDev 31	; 		r0->nam
+	API SetAbt 22	;
+	API JmpAbt 23	;
+	API CmpSpc 24	;
+	API SpcAsc 25	;
+	API SetLin 26	;
+	API GetDat 27	;
+	API OctAsc 30	;
+	API GetDev 31	;
 	API RptFld 32	;
 	API LptMod 33	;
 	API TerMod 34	;
 	API LoaSup 35	;
-	API ParDec 36	;		r0=val 
+	API ParDec 36	;
 	API PadTer 37	;
 	API PshBat 40	;
 	API PopBat 41	;
-	API GetCom 42	;		r0->com
-	API GetDrv 43	; r0=drv,r1=hdr
-	API TypBrk 44	; r0=msg
-
-.if ne 0
-	.MACRO	TYPMON msg
-	 .if nb <msg>
-	  mov	#msg,r0
-	 .endc
-	  emt	^o2	
-	.ENDM
-
-	.MACRO	SETABT ADR
-	 .if nb <adr>
-	   mov	pc,r0
-	   add	   #adr-.,r0
-	 .endc
-	 emt	^o22
-	.ENDM
-
-	.MACRO	JMPABT MSG
-	 .if nb <msg>
-	  .if dif msg,r0
-	   mov    msg,r0
-	  .endc
-	 .iff
-	  clr	r0
-	 .endc
-	 emt	^o23
-	.ENDM
-.endc
-
-;	MOVA - Move Adress
-;
-;	mova	10$,r0
-
-.if ne 0
-	.MACRO	MOVA SRC,DST
-	 mov	pc,dst
-	 .if idn <dst>,"-(sp)"
-	  mov	#src-.,(sp)
-	 .iff
-	  mov	#src-.,dst
-	 .endc
-	.ENDM
-
-;	MOVR - Move Relocated
-
-	.MACRO	MOVR SRC,DST,IDX
-	  i$nr'idx = .+2
-	  mov	src,dst
-	.ENDM
-
-.endc
+	API GetCom 42	;
+	API GetDrv 43	;
+	API TypBrk 44	;
 
 	.MACRO	ASSUME EX1 CND EX2 COM
 	 .iif cnd <ex1>-<ex2>,.mexit	
@@ -170,7 +186,7 @@ loc$c=0
 
 	.MACRO	FALL C
 	 .iif eq c-.,.mexit	
-	 .error c-. ;;;fall c 
+	 .error c-. ;fall c 
 	.ENDM 
 
 	.MACRO	STACK C D E F G H I J
@@ -245,28 +261,6 @@ loc$c=0
 ;	24 140000   0 00000  00  s$yrel: x$xbot:  Boot
 ;	   137000                s$ysup: x$xsup:  Supervisor
 ;
-;	caller	blk	start	end
-;	cu$chn	mobat.	x$xbat	x$xtra
-;	mo$rst	motra.	x$xtra	x$xper
-;	mo$chn	mocli.	x$xper	x$xsta
-;
-;	x$xbat	x$xtra	x$xper	x$xsta	x$xtop
-;	06000	10000	12000	14000	
-;
-;	x$xtop	20000
-;	x$xsta	14000	20000
-;	x$xper	12000	14000
-;	x$xtra	10000	12000
-;	x$xbat	06000	10000
-;	System data and init
-;
-;	Slips
-;
-;	1000/1002
-;	52
-;	s$ypad	12	1
-;	d$pufd	3	30
-
 ;	Monitor region block numbers
 
 ;	moBOO.	= 0		; boot
@@ -292,6 +286,10 @@ loc$c=0
 ;	cl.len	= 2		; command line length
 ;	 cllen.	= 44. 	;54	; default command line length
 ;	 clavl.	= 42.	;52	; available characters
+
+;	Manual control (CMI/SMI)
+
+	scMAN$ 	= 1
 
 ; 	Device information block
 	
@@ -325,76 +323,61 @@ loc$c=0
 ;	drSUC.	= 0		; an absence of errors
 ;	drTRA.	= -1		; dr.tra - transfer error
 ;	drFNF.	= 1		; dr.opn - file not found
-.sbttl	Image structure						(data)
-
-	scMAN$ 	= 1
-
-;	40	
-;	
-;
-;	@#2100 - default start address
-;	image	boot	init	monitor	CLI 		Batch
-;
-;0052	
-
 .sbttl	RL01/02 device structure				(data)
 
-;	This section is absent in the separated source version
+;	registers
 
-;	dr.xxx
-;	io.xxx
-
-   map	dlcsr.,,174400		; csr
-    map	dl.csr,,0	; 00 	; csr
-    map	dl.buf		; 02 	; buffer
-    map	dl.adr		; 04 	; track/sector
-    map	dl.wct,0	;/06 	; word count (write)
-    map	dl.dat		;\06 	; data value (read)
+	dlcsr.	= 174400	; csr
+ 	dl.csr	= 0	 	; csr
+	dl.buf	= 2		; 02 	; buffer
+	dl.adr	= 4	 	; track/sector
+	dl.wct	= 6	 	; word count (write)
+	dl.dat	= 6	 	; data value (read)
 
 ;	geometry
 				;
-   map	dlcyl.,,256.		; cylinders
-   map	dlrl2.,,2		; RL02 cylinder factor
-   map	dlhds.,,2		; heads
-   map	dlbpt.,,20.		; blocks per track
-   map	dltrk.,,64.		; track 
-   map	dl1sz.,,10240.		; blocks per RL01
-   map	dl2sz.,,20480.		; blocks per RL02
-   map	dlsiz.,,dl1sz.		;
+	dlcyl.	= 256.		; cylinders
+	dlrl2.	= 2		; RL02 cylinder factor
+	dlhds.	= 2		; heads
+	dlbpt.	= 20.		; blocks per track
+	dltrk.	= 64.		; track 
+	dl1sz.	= 10240.	; blocks per RL01
+	dl2sz.	= 20480.	; blocks per RL02
+	dlsiz.	= dl1sz.	;
 
 ;	CSR definitions.
 
-   map	dlrdy$,,1		; operation complete ("drive ready")
-   map	dlfun$,,7*2		; function
-   map	dlgo$,,200		; clear to start operation
-;				; actually "controller ready"
-   map	dluni$,,1400		; unit number (0..3)
-   map	dlun$m,,176377		; unit mask
-   map	dlerr$,,100000		; error seen
+	dlrdy$	= 1		; operation complete ("drive ready")
+	dlfun$	= 7*2		; function
+	dlgo$	= 200		; clear to start operation
+				; actually "controller ready"
+	dluni$	= 1400		; unit number (0..3)
+	dlun$m	= 176377		; unit mask
+	dlerr$	= 100000		; error seen
 
-   map	dlNOP.,,0*2	; 00	; nop
-   map	dlSTA.,,2*2	; 04	; get status
-   map	dlSEE.,,3*2	; 06	; seek
-   map	dlRHD.,,4*2	; 10	; read header
-   map	dlREA.,,6*2	; 14	; read data
-   map	dlRDX.,,7*2	; 16	; read with no header check
+	dlNOP.	= 0*2	; 00	; nop
+	dlSTA.	= 2*2	; 04	; get status
+	dlSEE.	= 3*2	; 06	; seek
+	dlRHD.	= 4*2	; 10	; read header
+	dlREA.	= 6*2	; 14	; read data
+	dlRDX.	= 7*2	; 16	; read with no header check
 
 ;	Seek
 
-   map	dlsee$,,1	;dl.adr	; seek activate
-   map	dldir$,,4		; seek direction
-   map	dlhea$,,20		; head select
+	dlsee$	= 1	;dl.adr	; seek activate
+	dldir$	= 4		; seek direction
+	dlhea$	= 20		; head select
 
-   map	dltrk$,,177600	;dl.dat	; track mask (RL02)
+	dltrk$	= 177600	;dl.dat	; track mask (RL02)
 
 ;	Get device status/size
 
-   map	dlmrk$,,1	;dl.adr	; marker
-   map	dlsts$,,2		; get status
-   map	dlrst$,,10		; reset errors
-   map	dlrep$,,13		; get device size (rst,sts,mrk)
+	dlmrk$	= 1	;dl.adr	; marker
+	dlsts$	= 2		; get status
+	dlrst$	= 10		; reset errors
+	dlrep$	= 13		; get device size (rst,sts,mrk)
 
-   map	dlrl2$,,200	;dl.dat	; RL02 
+	dlrl2$	= 200	;dl.dat	; RL02 
 .sbttl	XXDP disk structure					(data)
 
 ;	HOMBLK - XXDP MFD block
@@ -437,12 +420,11 @@ loc$c=0
 ;
 ;	endat$	= 077777	; date field mask
 ;	enctg$	= 100000	; contiguous file flag
-.sbttl	boot engine					(x$xbot)(boot)
+.sbttl	boot engine						(boot)
 .asect
 x$xlow:	. = 0
 
-;	A hardware boot or software boot loader, transfers control to
-;	location zero of the primary software boot.
+;	XXDP boot enters at location zero, like everyone else
 
 				; boot communication area
 bo$pri:	nop		;0000	; boot primary entry point
@@ -453,7 +435,7 @@ bo$pri:	nop		;0000	; boot primary entry point
 	.word	0	;0012	;
 	.word	0	;0014	; bpt vector skipped
 	.word	0	;0016	; 
-b$ocsr:	.word	dlcsr.	;0020	;*CSR address 			(patch point)
+b$ocsr:	.word	dlcsr.	;0020	; CSR address 	   (patch point)(note)
 bo$con:	nop		;0022	; boot continuation
 	br	bo$eng	;0024	; boot mainline
 
@@ -624,18 +606,19 @@ bo$nxt:	add	#2,b$osec	; two sectors per block
 bo$see:	bic	#dlfun$,(r1)	; clear function
 	bis	#dlRHD.,(r1)	; read header
 	call	bo$opr		; 
-	mov	dl.wct(r1),-(sp);	
-	mov	#dlsee$,dl.adr(r1)
+				;
+	mov	dl.wct(r1),-(sp); wct holds current track address	
+	mov	#dlsee$,dl.adr(r1) ; we will be seeking
 	tstb	b$ohea		;
 	beq	10$		;
-	bis	#dlhea$,dl.adr(r1)
-10$:	bic	#177,(sp)	;
-	sub	b$otrk,(sp)	;
-	bcc	20$		;
-	neg	(sp)		;
+	bis	#dlhea$,dl.adr(r1) ; set the head
+10$:	bic	#177,(sp)	; determine cylinder
+	sub	b$otrk,(sp)	; subtract what we want
+	bcc	20$		; we are going forward
+	neg	(sp)		; we are going backwardsd
 	bic	#177,(sp)	;
-	bis	#dldir$,dl.adr(r1)
-20$:	bis	(sp)+,dl.adr(r1);
+	bis	#dldir$,dl.adr(r1) ; set negative direction
+20$:	bis	(sp)+,dl.adr(r1); tell the RL01
 	bic	#dlfun$,(r1)	; clear function
 	bis	#dlSEE.,(r1)	; function = read data
 	bic	#dlgo$,(r1)	; go
@@ -666,26 +649,22 @@ bo$geo:	clr	b$ocyl		; clear proto cylinder
 	return	
 
 	.blkw	7		; boot round-up
-.sbttl	init prologue - low memory			(x$xini)(init)
-.psect	xxdp
-x$xini:	;$ 1000
-
-;	s$csts	= 52
-i$n50h:	.word	0	;1000	; 60/50 hertz clock (patch location)
-i$naut:	.word	0	;1002	; automated startup flag
-
-;$csts:	.word	0		; syscom status
-
-;	Init area
-
-x$xgap:	.blkb	2334
 .sbttl	Init engine (low memory)				(init)
+.psect	xxdp			; location 1000
+x$xini:
+
+;	Init prologue
+
+i$n50h:	.word	0	;1000	; 60/50 hertz clock 	  (patch point)
+i$naut:	.word	0	;1002	; automated startup flag  (patch point)
+x$xgap:	.blkb	2334
+
 
 ;	IN$ENG - Initialization engine
 ;
 ;	Stack, terminal and EMT vector 
 
-in$eng:	mov	#s$ystk,sp	; stack				(init entry)
+in$eng:	mov	#s$ystk,sp	; stack
 	mov	#TPS,s$ytps	; tps
 	mov	#TPB,s$ytpb	; tpb
 				;
@@ -700,7 +679,7 @@ in$eng:	mov	#s$ystk,sp	; stack				(init entry)
 	mov	#4,r3		; kw accumulator
 	mov	#20000,r0	; start address
 				;
-10$:	mov	#0,(r0)		; this test is repeated at in$siz(note)
+10$:	mov	#0,(r0)		; this test is repeated at in$siz
 	call	in$siz		; count 1kw 
 	inc	r3		; kw counter up
 	add	r1,r0		; advance address
@@ -713,6 +692,7 @@ in$eng:	mov	#s$ystk,sp	; stack				(init entry)
 ;	r0 ->	memory top - typically 160000
 
 20$:	add	#4,sp		; dump SetAbt pc/ps stack frame
+				;
 				;memory image
 30$:	mov	r0,s$yrel	;160000 20000	 
 	sub	#20000,s$yrel	;140000 00000 relocation constant
@@ -756,7 +736,7 @@ in$siz:	mov	r0,r2		; address
 	bne	10$		;
 	return			; one kw more
 
-;	Relocate list, list ends negative
+;	Relocation list, list ends negative
 
 in$con:	mov	s$yrel,r3	; r3 = relocation constant
 	mov	#i$nrel,r2	; r2 -> relocation list
@@ -822,7 +802,7 @@ in$hgh:	mov	#s$ystk,sp	; use the (unrelocated) system stack
 
 	clr	r2		; 0:1000 trap catchers
 	mov	#2,r3		; 
-10$:	mov	r3,(r2)+	; 000000: .word	2
+10$:	mov	r3,(r2)+	; 000000: .word	.+2
 	clr	(r2)+		; 000002: .word	0	; aka HALT
 	add	#4,r3		; and so on
 	cmp	r2,#1000	; upto 1000
@@ -928,7 +908,7 @@ in$hgh:	mov	#s$ystk,sp	; use the (unrelocated) system stack
 				;
 20$:	fall	in$hdw		; get hardware configuration
 
-;	Hardware, Config, System launch				(init)
+;	Hardware, Config, System launch
 ;
 ;	KW11P, line clock, line printer
 
@@ -962,7 +942,7 @@ in$fin:	tst	@#i$naut	; automated?
 				
 ;	Reset s$ypad because it had preset boot-time info	(note)
 
-10$:	movb	#1,s$ypad	; reset line padding		(note)
+10$:	movb	#1,s$ypad	; reset line padding
 
 ;	Fill in missing trap catchers between 0..20
 ;
@@ -1002,14 +982,15 @@ i$mubs:	.asciz	"UNIBUS SYSTEM"<cr><lf>
 i$mubq:	.asciz	"DOES THIS SYSTEM HAVE A UNIBUS? (Y/N CR=Y) "
 i$mxdp:	.ascii	|THIS IS XXDP+.  TYPE "H" OR "H/L" FOR HELP.|<cr><lf>
 	.even
-	.word	0		;			(savm)(slip)(note)
-	.word	0
-;
-;???	HMDLD0	HMDLD0
+
+;	HMDLD0	HMDLD0
 ;	.bin	CHMDLD0	CHMDKB1	CHMDLB0*
 ; 5240	0	104000	104001	000040
 ;		[210|0]	[210|1]	[0|40]
 ; 5242	0	0	0	1
+
+	.word	0	;5240	;			(savm)(slip)(note)
+	.word	0	;5242	;
 
 ;	IN$PDT - Parse date
 ;
@@ -1055,8 +1036,8 @@ in$pdt:	clr	s$ydat		; clear result
 30$:	mov	#1,s$ydat	; day = 1
 	clr	r4		; month = 0
 	clr	r2		; year = 0
-	clr	r0		; redundant: r0 is set at 10$
-	br	10$		; <clr r0> is orphan code	(note)
+	clr	r0		; redundant: r0 is set at 10$	(note)
+	br	10$		; 
 
 40$:	 add	#2,(sp)		; was a good date
 50$:	return			; wasn't a fun evening
@@ -1163,18 +1144,20 @@ in$iob:	movr	#d$riob,r5,5	; IOB
 
 i$mmon:	.asciz	<cr><lf>"CHMDLD0 XXDP+ DL MONITOR"
 	.even
-.sbttl	Batch engine					(x$xbat)(batch)
+.sbttl	Batch engine						(batch)
+x$xbat:
 	
 ;	Start of batch area
 ;	
 ;	The stack pointer below is used for abort/restart
 ;	And to switch context between batch/interactive modes
+;
+;	The batch engine is copied to the overlay region for execution.
+;	Because of this all it's relative addresses that access
+;	the monitor outside it's local area need to be offset.
 
-	$$ = o$vreg-o$vbat;4000	; offset for relative mode relocation
-				; 6000- 7414 - batch overlay
-x$xbat:
-o$vbuf:				; overlay buffer
-o$vbat:				; batch overlay origin
+	$$ = o$vreg-b$areg;4000	; offset for relative mode relocation
+				; 6000- 7414 - batch region
 
 ;	BA$ENG - Batch engine
 
@@ -1201,7 +1184,7 @@ bc$qut:	mov	b$astk,sp	; nix - restore stack
 	return
 
 
-;	Batch abort
+;	BA$ABT - Batch abort
 ;
 ;	Abort routine (from set abort above)
 
@@ -1258,7 +1241,7 @@ b$aloo:	.asciz	"SMI"
 	.asciz	"IF"
 	.even
 
-;	Dispatch batch command
+;	BA$DIS - Dispatch batch command
 
 ba$dis:	ParFld			; get a command name
 	 nop			; ignore errors
@@ -1345,7 +1328,7 @@ bu$loa:	ParFld			; get "FILNAM"
 bc$sta:	call	bu$sta		; get the start address
 	br	bu$act		; activate
 
-;	Get start address and repeat count for batch Run and Start
+;	BU$STA - Get start address and repeat count for batch Run and Start
 ;
 ;	S 200		start at 200
 ;	S/5		repeat five times
@@ -1369,7 +1352,7 @@ bu$sta:	mov	#1,s$ysta-$$	; default start state
 20$:	return
 
 
-;	Batch Start/Run program
+;	BU$ACT - Batch Start/Run program
 
 	.enabl	lsb
 bu$act:	cmp	#1,s$ysta-$$;	; LDA?
@@ -1380,7 +1363,7 @@ bu$act:	cmp	#1,s$ysta-$$;	; LDA?
 	bne	20$		; no - has something real
 	mov	#200,s$yact-$$	; yes -default to @#200 activation address
 
-;	Configure Syscom
+;	Configure low-memory syscom
 
 20$:	GetDev			; r0 -> 
 	movb	dv.uni(r0),r1	; get the ascii unit number
@@ -1446,8 +1429,8 @@ bc$chn:	ParFld			; get a filespec
 ;	GOTO label
 ;
 ;	label
-
-;???	Does this routine loop if the label is not found?
+;
+;	Will GOTO will loop forever if a label is not found?	(note)
 
 bc$gto:	mov	#s$ygto,r2	; batch goto buffer
 	add	s$yrel-$$,r2	; relocate
@@ -1481,6 +1464,7 @@ bc$gto:	mov	#s$ygto,r2	; batch goto buffer
 60$:	incb	s$yqui-$$	; put that back how we found it
 70$:	return			; we are located at the label
 
+
 ;	Batch WAIT command
 ;
 ;	WAIT
@@ -1494,10 +1478,12 @@ bc$wai:	GetAvl			; wait for operator ^X
 	bne	bc$wai		; nope
 	br	bu$new		; newline and out
 
+
 ;	Batch QUIET command
 
 bc$qui:	comb	s$yqui-$$	; flip the quiet flop
 	return
+
 
 ;	Batch PRINT command
 
@@ -1532,7 +1518,7 @@ bc$ift:	ParFld			; r0 -> condition switch
 	fall	bu$tru		; 
 
 
-;	Condition true - gobble "THEN"
+;	BU$TRU - Condition true - gobble "THEN"
 ;
 ;	B$ATHN actually points to "THENEND"			(note)
 
@@ -1546,7 +1532,7 @@ bu$tru:	ParFld			; get yet another field
 	bne	bu$err		; nope - bummer
 	br	bu$nop		; yep
 
-;	Condition false - search for "END"
+;	BU$FAL - Condition false - search for "END"
 
 bu$fal:	GetLin			; search chain file for "END"
 	 bcc	bu$nop		; EOF - we're all done
@@ -1603,7 +1589,7 @@ bc$cmi:	bic	#scMAN$,@#52	; CMI - Clear manual
 	return
 
 
-;	Batch managed image exit
+;	BU$RET - Batch managed image exit
 ;
 ;	BU$RET has two cases and three paths:
 ;
@@ -1642,7 +1628,7 @@ bu$ret:	call	bu$pr7		; PR7
 10$:	jmp	bu$exi		; exit image
 
 
-;	Set PR7 with RTI
+;	BU$PR7 - Set PR7 with RTI
 ;
 ;	Classic kernel-mode SPL 7 routine
 
@@ -1671,11 +1657,8 @@ bc$enb:	ParOct			; get a unit number
 	balen. = .-b$areg	; length of batch overlay
 
 	.blkw	172	;122.	; round-up to 10000
-.sbttl	Terminal					(x$xtra)(terminal)
-
-;	The checksum area 10000-14000 is restored if overwritten.
-
-x$xtra:				; beginning of transient memory 
+.sbttl	Terminal					    (terminal)
+x$xtra:
 
 ;	TE$PUT - Display a single character
 ;
@@ -1722,7 +1705,7 @@ te$ctc:	cmpb	r0,#ctrlc	; ^C - are you looking at me?
 ;	ctrl/c	Temporarily halt a DRS batch file
 ;	ctrl/z	Terminate a DRS batch file
 
-te$ctl:	tstb	r0		; ^@ - null 		(GetCmd EPT)
+te$ctl:	tstb	r0		; ^@ - null (GetCmd EPT)
 	beq	30$		;
 	cmpb	r0,#ctrlz 	; ^Z - Terminate DRS batch file
 	bgt	30$		; 
@@ -1915,10 +1898,10 @@ gf$sec:				; gf$sec called by ParOct
 ;
 ;		TypMon
 
-
 TypMon:	add	pc,r0
 10$:	sub	#10$,r0		; relocate monitor string
 	fall	TypMsg
+
 
 ;	TypMsg - Type message service				(EMT 3)
 ;	
@@ -1989,7 +1972,7 @@ GetAvl:	mov	r1,-(sp)	; save r1
 40$:	mov	(sp)+,r1	; restore that
 	return
 
-;
+
 ;	GetChk - Get character, check ctrl/c			(EMT 6)
 ;
 ;		GetChk
@@ -2021,7 +2004,7 @@ GetChk:	tstb	s$ybat		; batch?
 40$:	br	gl$sec		; fine: EMT c=1 (GetLin gl$sec sets carry)
 50$:	return			; fail: EMT c=0 (batch EOF only)
 
-;
+
 ;	NewLin - NewLine service				(EMT 7)
 
 t$enew:	.byte	cr,lf,0,0	; also used by bu$new
@@ -2085,25 +2068,15 @@ ParOct:	ParFld			; r0 -> field
 ;	Space-fill filename area
 ;	Move in file name
 ;
-;	converts rad50 filename to 12-byte ascii string
-;	calls driver with string, that's it
-;	default routines in the resident driver code
-;
-;	r1 is modified
-;
-; fix	r3 not updated after "."
-;
-;	OpnFil formats the incoming file spec
-;	A 10-byte buffer is first space filled
-;
-;	The file name is copied into the buffer
-;	When the file type "." period is seen the pointer 
-;	is moved to byte 6.
-;
+;	Converts rad50 filename to 12-byte ascii string
 ;	Where "_" represents the space, the name "XXX.SYS" becomes:
 ;
 ;	"XXX___.SYS"
 ;	 0123456789"
+;
+;	r1 is modified
+;
+; fix	r3 not updated after "."
 
 OpnFil:	mov	#d$riob,r5	; IOB
 	add	s$yrel,r5	; r5 -> IOB
@@ -2250,7 +2223,7 @@ OctAsc:	mov	r0,r3		; r3 = value
 .sbttl	Lpt/TerMod LoaSup ParDec PadTer Psh/PopBat GetCom	(EMT)
 
 ;	This code page finishes exactly at the 12000 boundary
-;	It must have been linked /high (DOS would have had this)
+;	It must have been linked /high
 
 
 ;	LptMod - Output to printer service			(EMT 33)
@@ -2419,8 +2392,7 @@ PshBat:	clr	f$isck		; invalidate batch saved checksum
 GetCom:	mov	#s$ycom,r0	; point to s$ycsr
 	add	s$yrel,r0	; relocate
 	return
-.sbttl	XXDP Engine/CLI Engine				(x$xper)(CLI)
-
+.sbttl	XXDP CLI Engine						(CLI)
 x$xper:				; 12000
 
 ;	The area 12000:14000 is reread from disk on chain exit
@@ -2451,9 +2423,7 @@ cl$eng:	mov	#s$ystk,sp	; restore stack
 	add	s$yrel,sp	; relocate
 	call	em$rst		; restore EMT vector
 
-;	Calls cl$cmd immediately below with a dummy RTI
-;	acting as an SPL 7 instruction that works on any PDP-11
-;	XXDP wants to always be at PR7
+;	Calls cl$cmd immediately below with a dummy RTI set PR7
 
 	mov	#340,-(sp)	; build dummy int. frame
 	mov	pc,-(sp)	;
@@ -2485,7 +2455,7 @@ cl$cmd:	mov	pc,r0
 
 c$laut:	.word	0		;@#i$naut flag
 
-;	CLI command dispatch
+;	CL$DIS - CLI command dispatch
 
 cl$dis:	tst	c$laut		; automated startup?
 	beq	10$		; nope
@@ -2507,11 +2477,11 @@ cl$dis:	tst	c$laut		; automated startup?
 
 30$:	mov	r0,r3		; r0/r3 -> command name field
 40$:	cmpb	r1,-1(r3)	; just passed the terminator (in r1)?
-	beq	60$		; yes
+	beq	50$		; yes
 	cmpb	(r3)+,(r2)+	; same?
 	beq	40$		; when you're on a good thing...
 50$:	tstb	-1(r2)		; end of the command entry?
-	bne	50$		; no - not a match
+	bne	60$		; no - not a match
 	tstb	-1(r3)		; matched to end of input?
 	beq	70$		; yes - got a command - dispatch it
 	cmpb	-1(r3),#space	; space?
@@ -2538,13 +2508,10 @@ cl$ifn:	mov	#m$sfnm,r0	; invalid filename
 	TypMon			; "? INVALID FILENAME"
 	return
 
-m$scmd:	.asciz	"? INVALID COMMAND"	; message
+m$scmd:	.asciz	"? INVALID COMMAND"
 m$sfnm:	.asciz	"? INVALID FILENAME"
 m$sadr:	.asciz	"? BAD ADDR"
-
-;	The following byte is not referenced
-
-	.byte	-1		; redundant?			(note)
+	.byte	-1		; why not .even?		(note)
 
 ;	CLI command lookup table
 
@@ -2616,7 +2583,7 @@ cl$chn:	ParFld.			; get the field
 	call	cu$qvs		; parse optional /QV
 	fall	cu$chn
 
-;	CLI Chain/Test common
+;	CU$CHN - CLI Chain/Test common
 ;
 ;	CU$CHN calls MO$CHN to copy/activate the batch process
 ;	This area is overwritten by the batch overlay copy	(note)
@@ -2892,14 +2859,14 @@ cu$swi:	mov	#s$yswi-10$,r2	; the switch buffer
 60$:	return
 .sbttl	EMT Engine						(EMT)
 
-;	Restore EMT vector
+;	EM$RST - Restore EMT vector
 
 em$rst:	mov	#em$eng,@#v$eemt 	; rebuild EMT vector
 	add	s$yrel,@#v$eemt		; relocate
 	mov	#340,@#v$eemt+2		; PR7
 	return
 
-;	EMT dispatch engine
+;	EM$ENG - EMT dispatch engine
 ;
 ;	r0 is undefined for many services
 ;	r1 is wilful
@@ -3363,6 +3330,7 @@ PutCha:	cmpb	r0,#lf		; linefeed?
 30$:	GetAvl			; returns available character
 	return
 
+
 ;	ReaNxt - Read next block service			(EMT 20)
 ;
 ;	in	f$inxt	next block
@@ -3378,6 +3346,7 @@ ReaNxt:	mov	f$inxt,io.blk(r5); advance to next block
 	ReaBlk			; read it
 	 add	#2,(sp)		; we're always good
 10$:	return			; we ain't
+
 
 ;	Reablk - Read Block service				(EMT 21)
 ;
@@ -3534,7 +3503,7 @@ SpcAsc:	mov	(r1)+,r0	; "fil"
 	mov	(r1)+,r0	; "filnam.typ"
 	call	su$unp		;
 	return
-.sbttl	Driver functions					(driver)
+.sbttl	Driver Transfer function				(driver)
 x$xdrv:
 
 ;	Separate driver code exists for each XXDP-supported system device
@@ -3551,7 +3520,6 @@ d$pspc:	.blkb	12.	;	; .asciz "filnam.typ"<0>
 d$pmon:	.word	170.	;252	; first xmonitor block	    (savm)(boot)
 	.word	0	;	; local
 d$ptwc:	.word	0	;	; transaction word count
-.sbttl	Driver Transfer function				(driver)
 
 ;	DR$TRA - Driver transfer function 
 ;
@@ -3681,7 +3649,7 @@ dr$tra:	mov	r0,-(sp)	; we do our own thing
 	mov	#m$srer,r0	; "? RD ERR" (abort routine relocates)
 	JmpAbt			; abort
 
-;	Initiate operation, wait and check errors
+;	DU$OPR - Initiate operation, wait and check errors
 ;
 ;	call	du$opr
 ;	beq	fine
@@ -3693,12 +3661,12 @@ du$wai:	bit	#dlERR$!dlGO$,(r0) ; error|ready
 	bmi	10$		; awful
 	sez			; wonderful
 10$:	return
-.sbttl	Get Device, Open File, Restore Driver functions	(x$xtop)(driver)
+.sbttl	Get Device, Open File, Restore Driver functions		(driver)
 		
 ;	DR$DEV - Get Device name/unit/media function
 ;
 ;	in	r5 ->	IOB
-
+;
 ;		call	dr.dev(r5)
 ;
 ;	out	r0 ->	d$rdev: drTdev structure
@@ -3716,7 +3684,6 @@ dr$dev:	movb	dr.uni(r5),r0	; unit ordinal
 d$rdev:	.ascii	"DL"	;0	;\ dv.nam - driver device name ("DL")
 	.ascii	""<0>	;2	;| dv.uni - driver device unit ("0")
 	.byte	dvRL1.	;3 14	;/ dv.med - driver device media code
-	.assume	.-d$rdev eq  dvbbs. ;
 
 
 ;	DR$OPN - Open file function
@@ -3874,180 +3841,4 @@ m$srer:	.asciz	"? RD ERR"<cr><lf>
 	.blkw	2		; round-up driver and monitor
 				;
 x$xtop:	.end			; 20000
-							(x$xtop)(20000)
-;	XXDP was the diagnostic operating system for PDP-11 computers.
-;	This source file was created by reverse assembling the binary
-;	image of the XXDP+ monitor. (Ian Hammond, 2021)
-;
-;	Because of the fixed space restrictions placed on the monitor,
-;	code compression was always required to find space for new
-;	functionality. XXDP uses many software techniques to achieve
-;	that goal. The code is heavily compressed. That said, there's
-;	still room for improvement.
-;
-;	XXDP's architecture is based on a simple, near-boolean level
-;	state machine. There is never any analytic vagueness regarding
-;	system state. XXDP was most likely first fully developed as a 
-;	flow chart, which was the way things were in the 1960s and early
-;	1970s (the mini-computer was the birthplace of the real hacker
-;	and XXDP has a share in that as well in places).
-;
-;	XXDP has a remarkably flat structure. Registers rarely need
-;	to be saved/restored across routines (less than 10 instances).
-;	All parameters and results are passed in registers, obeying
-;	a strict usage protocol.
-;
-;	One overarching simplification is the almost complete absence of
-;	sanity testing. It will accept any disk volume as an XXDP volume,
-;	no matter how crazy the directory structure might appear. It tests
-;	only for conditions that make it impossible to continue. However,
-;	earlier versions may have had more sanity testing because it is
-;	very clear that they've had to compress the code a number of time
-;	to find space for new functionality. Sanity tests end up on
-;	the chopping block sooner or later in that process.
-;
-;	Crown
-;
-;	Buzz
-;	definitions
-;	boot
-;	init - low & high
-;	batch
-;	services
-;	terminal
-;	CLI
-;	emt service dispatch
-;	monitor restore
-;	services
-;	system data
-;	services
-;	driver
-.sbttl	XXDP System Service API					(data)
-
-;	A fortunate thread in alt.sys.pdp11 led to a one-time DEC
-;	diagnostic engineer digging out the XXDP system macro file,
-;	MACROM.MAC, and sending it to me. It was absolute gold,
-;	however I've chosen to rename all the services, twice over.
-;
-;	MACROM	Study	XDP
-;	GCmdSt	GetCmd	.gtcmd
-;	GToken	ParFld	.pafld
-;	OneChr	PutCha	.ptcha
-;
-;	I thought of the Study group as scaffolding and had planned to
-;	use the XDP names for the restoration, however I found that
-;	the Study names were more visually effective.
-;
-;	I've given the services names that reflect their function
-;	with regard to the monitor, rather than the usual case
-;	which describes an API from an application usage viewpoint.
-;
-;	In fact, it makes little sense to draw a line between
-;	cusps and the monitor at all. The utilities UPD1 and UPD2
-;	are best seen as monitor low memory overlays. They extend
-;	the monitor. Their coding style is that of the monitor.
-.if ne 0
-nn$pkw:	clr	r0
-10$:	inc	r0
-	sub	#10.,r1
-	bpl	10$
-	dec	r0
-	beq	20$
-	call	30$
-20$:	add	#10.,r1
-	mov	r1,r0
-30$:	add	#'0,r0
-	PutChk
-	return
-.endc
-.if ne 0
-.MACRO	META	M N O P
-.macro m
-n
-o
-p
-.endm
-.ENDM
-
-	.macro	map c d=2 v
-	.iif nb <v>,$=v
-	c=:$
-	$=$+<d>
-	.endm
-	.macro	fall loc
-	.endm
-	.macro	assume x y z
-	.endm
-	.macro	stack a,b,c,d,e,f
-	.endm
-.endc
-.if ne 0
-
-round-ups
-boot	6
-batch	122
-driver	2
-
-image layout
-
-image/system shared data
-
-monitor, 
-drivers
-cusps
-supervisors and tests
-.endc
-
-;	System state flags
-;
-;	s$yaut
-;	s$ybat	
-;	s$yloa
-;	s$yrun
-;
-;	s$ysta
-;	s$yact
-;
-;	SKIP
-;	BCS
-;	ABORT
-;	Utility Layout
-
-.if ne 0
-CLI
-Batch
-Run
-Load
-Start 
-Activation
-Return
-Repeat
-.endc
-;	Diagnostic layout
-
-
-r
-
-;	xx.dat has a 15-bit date field with a maximum value of (2^15)-1,
-;	aka, 32367. The maximum year/day combination is in fact 32
-;	years (32365). XXDP uses only a 29-year range, 1970-1999.
-;	There was no reason why 1000. couldn't have been 512.
-;	However, RT-11 made even sillier decisions.
-;	It was earlier thinking.
-
-;	CloFil - Close file service				(EMT 13)
-;
-;	CloFil is deprecated in the XXDP+ and XXDP V2 monitors
-;
-;	CloFil would have originally cleared the file state variables.
-;	In XXDP+ FilOpn clears file state, which saved space.
-;	CloFil was retained as NOP return for backwards compatibility.
-;	The V2 SM and XM monitors retain the CloFil NOP return.
-;	(In XM the return is moved to the EMT dispatcher return)
-
-;	mova	mov pc,dst	add #adr-.,r0
-;	mova2	mov #adr+4-.,r0	add pc,dst
-;	movi	movi adr,dst	add idx,dst
-;	movr	mov src,dst	add s$yrel,dst
-;	movp	mov #.,dst,	sub pc,dst	add src, dst
-;	movu	mov #adr,dst
+
