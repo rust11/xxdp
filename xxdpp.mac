@@ -7,45 +7,46 @@
 ;
 ;	%build
 ;	macro xds:xxdpp/object:xdb:
-;	macro xds:xxdpp/object:xdb:/noobject/list:xdb:
+;	macro xds:xxdpp/list:xdb:xxdpp.lst/noobject
 ;	r detab
-;	xdb:xxdpp.lst xdb:xxdppw.lst
+;	xdb:xxdpp.lst xdb:xxdpps.lst
 ;	^C
-;	link xdb:xxdpp/exe:xdb:xxdpp/map:xdb:/cross/nobitmap
+;	link xdb:xxdpp/exe:xdb:xxdpp.img/map:xdb:/cross/nobitmap
+;	differ/binary xdb:xxdpp.img xds:hmdld0.img
 ;	%end
 ;
 ;	Edit History:
 ;
 ;    01 01-Jan-2000 IJH	Disassemble and study XXDP+
-;    02 0n-Mar-2021 IJH	Complete initial source code recovery
+;    02 14-Mar-2021 IJH	Complete initial source code recovery
 ;	
 ;	Source introduction:
 ;
 ;	XXDP was/is the diagnostic operating system for PDP-11 computers.
-;	This source file was created by reverse assembling the binary
-;	image of the XXDP+ HMDLD0 monitor found on XXDP23 distribution.
+;	This source file was created by reverse assembling the binary image
+;	of the XXDP+ HMDLD0 monitor found on XXDP23 distribution.
 ;
-;	XXDP constitutes the de factor definition of the PDP-11, as
-;	anyone who writes an emulator soon finds out. It's the toughest
-;	the PDP-11 systems, case-hardened by its use on only partially 
-;	functioning systems.
+;	XXDP constitutes the de factor definition of the PDP-11, as anyone
+;	who writes an emulator soon finds out. It's the toughest the PDP-11
+;	systems, case-hardened by its use on only partially functioning 
+;	systems.
 ;
-;	XXDP's architecture is based on a simple, near-boolean level
-;	state machine. There is rarely any analytic vagueness regarding
-;	system state.
+;	XXDP's architecture is based on a simple, near-boolean level state
+;	machine. There is rarely any analytic vagueness regarding system 
+;	state.
 ;
-;	XXDP has a remarkably flat structure. Registers rarely need
-;	to be saved/restored across routines (less than 10 instances).
-;	All parameters and results are passed in registers, obeying
-;	a strict usage protocol.
+;	XXDP has a remarkably flat structure. Registers rarely need to be
+;	saved/restored across routines (less than 10 instances). All
+;	parameters and results are passed in registers, obeying a strict
+;	usage protocol.
 ;
-;	Because of the fixed space restrictions placed on the monitor,
-;	code compression was always required to find space for new
-;	functionality. XXDP uses many software techniques to achieve
-;	that goal. The code is heavily compressed.
+;	Because of the fixed space restrictions placed on the monitor, code
+;	compression was always required to find space for new functionality.
+;	XXDP uses many software techniques to achieve that goal. The code 
+;	is heavily compressed.
 ;
 ;	One overarching simplification is the almost complete absence of
-;	sanity testing. It will accept any disk volume as an XXDP volume,
+;	sanity testing. It will accept any disk volume as an XXDP volume, 
 ;	no matter how crazy the directory structure might appear. It tests
 ;	only for conditions that make it impossible to continue.
 ;
@@ -56,26 +57,26 @@
 ;
 ;	The monitor source code translation is complete with this release.
 ;	However, the documentation requires a programmer's guide and a system
-;	logic manual, at some distant point in time. For clarity I have
-;	not used macro definitions for system EMT calls in this, preferring
-;	to see all the binary code instructions. A later release should
-;	employ macros for system calls. The comments can also be improved.
+;	logic manual, at some distant point in time. For clarity I have not
+;	used macro definitions for system EMT calls in this, preferring to
+;	see all the binary code instructions. A later release should employ
+;	macros for system calls. The comments can also be improved.
 ;
-;	The XXDP monitor itself is restricted to read-only support for
-;	system media. The other half of the system, that creates and writes
-;	files, is buried in a DRVCOM package that are embedded in the UPD1,
-;	UPD2, PATCH and XTECO utilities and the stand-alone drivers.
+;	The XXDP monitor itself is restricted to read-only support for system
+;	media. The other half of the system, that creates and writes files,
+;	is buried in a DRVCOM package that are embedded in the UPD1, UPD2, 
+;	PATCH and XTECO utilities and the stand-alone drivers.
 ;
-;	I began looking at XXDP around year 2000 when I used it to test
-;	a PDP-11 emulator I'd written. I got curious and wrote a simple
-;	disassembler and began annotating it (which I came back to in
-;	2010 and 2015). At first I approached the project as an act of 
-;	diligence: I thought the source was important for the history of
-;	the PDP-11. However, it turned out to be a fascinating task and
-;	it was a real joy to see the operating system as a whole slowly
-;	emerge. There were so many subtleties to be discovered. There's 
-;	some horrible HELLO WORLD coding here and there, but most of it
-;	is tight and the state machine design is highly disciplined.
+;	I began looking at XXDP around year 2000 when I used it to test a
+;	PDP-11 emulator I'd written. I got curious and wrote a simple
+;	disassembler and began annotating it (which I came back to in 2010
+;	and 2015). At first I approached the project as an act of diligence:
+;	I thought the source was important for the history of the PDP-11. 
+;	However, it turned out to be a fascinating task and it was a real 
+;	joy to see the operating system as a whole slowly emerge. There were
+;	so many subtleties to be discovered. There's some horrible HELLO 
+;	WORLD coding here and there, but most of it is tight and the state 
+;	machine design is highly disciplined.
 ;
 ;	Some grateful acknowledgements:
 ;
@@ -84,11 +85,11 @@
 ;	diagnostics, looking for tiny clues. Joerg Hoppe's extensive XXDP
 ;	microfiche contributions to bitsavers included some critical sources.
 ;	A sometime DEC diagnostic programmer, Michael Moroney, who visited 
-;	alt.sys.pdp11 some years ago, was kind enough to dig up and send 	
-;	me a copy of MACROM.MAC, the XXDP+ system macro module, which was 
-;	truly invaluable: I had "names" for the system services. There have
-;	been quite a few valuable websites that have dedicated time and space
-;	to XXDP over the years from which I have gleaned information.
+;	alt.sys.pdp11 some years ago, was kind enough to dig up and send me	
+;	a copy of MACROM.MAC, the XXDP+ system macro module, which was truly 
+;	invaluable: I had "names" for the system services. There have been
+;	quite a few valuable websites that have dedicated time and space to
+;	XXDP over the years from which I have gleaned information.
 .sbttl	XXDP API						(data)
 
 ;	I've renamed the system services to reflect their functional
@@ -181,7 +182,7 @@
 
 	.MACRO	ASSUME EX1 CND EX2 COM
 	 .iif cnd <ex1>-<ex2>,.mexit	
-	 .error <ex1>-<ex2> ;;;assume ex1 cnd ex2: com	
+	 .error <ex1>-<ex2> ;;;assume ex1 cnd ex2: com
 	.ENDM	
 
 	.MACRO	FALL C
@@ -323,9 +324,51 @@
 ;	drSUC.	= 0		; an absence of errors
 ;	drTRA.	= -1		; dr.tra - transfer error
 ;	drFNF.	= 1		; dr.opn - file not found
+.sbttl	XXDP disk structure					(data)
+
+;	HOMBLK - XXDP MFD block
+
+	hbblk.	= 1		; block 1
+	hbbas.	= 1000		; disk byte address
+
+	hb.nxt	= 0	;0	; next block 	(always zero)
+	hb.ufd	= 2 	;	; first UFD directory block
+;	hb.dbc	= 4	;	; directory block count
+;	hb.map	= 6	;	; first map block
+;	hb.mbc	= 10	;	; map block count
+;	hb.mfd	= 12	;	; MFD block (self-reference to block 1)
+;	hb.ver	= 14	;	; XXDP version (never seen used)
+; 	 dbxv2. =  1002	;0	; XXDP V2 version code
+;	hb.tot	= 16	;	; total blocks
+;	hb.res	= 20	;	; reserved blocks
+;	hb.int	= 22	;	; interleave factor
+;	hb.boo	= 24	;0	; boot block
+	hb.mon	= 26	;30	; monitor block
+;	hb.ref	= 30	;	; MFD refreshed flag (not-0 = yes)
+;	hbbbs.	= 30		; block size
+
+;	Directory entry
+
+	en.fil	= 0	;fil	; rad50 filename (0=>deleted)
+	en.nam	= 2	;nam	;
+	en.typ	= 4	;typ	;
+	en.dat	= 6	;	; file date and contiguous flag
+	en.ffb	= 12	;	; first-free byte
+	en.sta	= 14	;	; start block
+	en.len	= 16	;	; length in blocks
+	en.lst	= 20	;	; last block in use
+	en.flg	= 22	;	; flags
+	enbbs	= 24	;18.	;
+
+;	en.dat - XXDP/DOSbatch date
+;
+;	date = (year*1000.) + day-in-year;
+;
+;	endat$	= 077777	; date field mask
+;	enctg$	= 100000	; contiguous file flag
 .sbttl	RL01/02 device structure				(data)
 
-;	registers
+;	Registers
 
 	dlcsr.	= 174400	; csr
  	dl.csr	= 0	 	; csr
@@ -334,7 +377,7 @@
 	dl.wct	= 6	 	; word count (write)
 	dl.dat	= 6	 	; data value (read)
 
-;	geometry
+;	Geometry
 				;
 	dlcyl.	= 256.		; cylinders
 	dlrl2.	= 2		; RL02 cylinder factor
@@ -378,48 +421,6 @@
 	dlrep$	= 13		; get device size (rst,sts,mrk)
 
 	dlrl2$	= 200	;dl.dat	; RL02 
-.sbttl	XXDP disk structure					(data)
-
-;	HOMBLK - XXDP MFD block
-
-	hbblk.	= 1		; block 1
-	hbbas.	= 1000		; disk byte address
-
-	hb.nxt	= 0	;0	; next block 	(always zero)
-	hb.ufd	= 2 	;	; first UFD directory block
-;	hb.dbc	= 4	;	; directory block count
-;	hb.map	= 6	;	; first map block
-;	hb.mbc	= 10	;	; map block count
-;	hb.mfd	= 12	;	; MFD block (self-reference to block 1)
-;	hb.ver	= 14	;	; XXDP version (never seen used)
-; 	 dbxv2. =  1002	;0	; XXDP V2 version code
-;	hb.tot	= 16	;	; total blocks
-;	hb.res	= 20	;	; reserved blocks
-;	hb.int	= 22	;	; interleave factor
-;	hb.boo	= 24	;0	; boot block
-	hb.mon	= 26	;30	; monitor block
-;	hb.ref	= 30	;	; MFD refreshed flag (not-0 = yes)
-;	hbbbs.	= 30		; block size
-
-;	Directory entry
-
-	en.fil	= 0	;fil	; rad50 filename (0=>deleted)
-	en.nam	= 2	;nam	;
-	en.typ	= 4	;typ	;
-	en.dat	= 6	;	; file date and contiguous flag
-	en.ffb	= 12	;	; first-free byte
-	en.sta	= 14	;	; start block
-	en.len	= 16	;	; length in blocks
-	en.lst	= 20	;	; last block in use
-	en.flg	= 22	;	; flags
-	enbbs	= 24	;18.	;
-
-;	en.dat - XXDP/DOSbatch date
-;
-;	date = (year*1000.) + day-in-year;
-;
-;	endat$	= 077777	; date field mask
-;	enctg$	= 100000	; contiguous file flag
 .sbttl	boot engine						(boot)
 .asect
 x$xlow:	. = 0
@@ -736,7 +737,10 @@ in$siz:	mov	r0,r2		; address
 	bne	10$		;
 	return			; one kw more
 
-;	Relocation list, list ends negative
+;	Process the monitor relocation list
+;
+;	We relocate the low memory copy of the monitor just before
+;	copying the monitor to high memory.
 
 in$con:	mov	s$yrel,r3	; r3 = relocation constant
 	mov	#i$nrel,r2	; r2 -> relocation list
@@ -945,8 +949,6 @@ in$fin:	tst	@#i$naut	; automated?
 10$:	movb	#1,s$ypad	; reset line padding
 
 ;	Fill in missing trap catchers between 0..20
-;
-;	Diagnostics usually fill 0000:1000 with trap catchers
 
 	mov	#20,r0		; r0 -> top of the area
 	mov	#16,r1		; r1 -> a word below
@@ -1149,9 +1151,6 @@ x$xbat:
 	
 ;	Start of batch area
 ;	
-;	The stack pointer below is used for abort/restart
-;	And to switch context between batch/interactive modes
-;
 ;	The batch engine is copied to the overlay region for execution.
 ;	Because of this all it's relative addresses that access
 ;	the monitor outside it's local area need to be offset.
@@ -1160,6 +1159,9 @@ x$xbat:
 				; 6000- 7414 - batch region
 
 ;	BA$ENG - Batch engine
+;
+;	The stack pointer below is used for abort/restart
+;	And to switch context between batch/interactive modes
 
 b$areg:
 b$astk:	.word	0		;\ batch stack
@@ -1242,6 +1244,9 @@ b$aloo:	.asciz	"SMI"
 	.even
 
 ;	BA$DIS - Dispatch batch command
+;
+;	r0/r1 are carefully preserved by the dispatcher.
+;	They are used (redundantly) by the batch END command.
 
 ba$dis:	ParFld			; get a command name
 	 nop			; ignore errors
@@ -1280,7 +1285,10 @@ ba$dis:	ParFld			; get a command name
 	TypMon			;
 	br	60$		; wind back to batch engine
 
-;	Dispatch batch command
+;	Call batch command
+;
+;	r0 ->	command field
+;	r1 =	terminator
 
 50$:	mov	(r4),r4		; r4 -> dispatch entry
 	add	s$yrel-$$,r4	; relocate
@@ -1328,7 +1336,10 @@ bu$loa:	ParFld			; get "FILNAM"
 bc$sta:	call	bu$sta		; get the start address
 	br	bu$act		; activate
 
-;	BU$STA - Get start address and repeat count for batch Run and Start
+
+;	BU$STA - Get batch Run/Start start address or repeat count
+;
+;	in	r1 =	command field terminator
 ;
 ;	S 200		start at 200
 ;	S/5		repeat five times
@@ -1342,7 +1353,7 @@ bu$sta:	mov	#1,s$ysta-$$	; default start state
 	bne	10$		; nope, octal address
 	ParDec			; translate decimal
 	 br	20$		; oops
-	mov	r0,s$yrpt-$$	; store repeat count, check for start address
+	mov	r0,s$yrpt-$$	; store repeat count, check for address
 				;
 10$:	ParOct			; get the octal start address
 	 br	20$		; no such luck
@@ -1352,7 +1363,7 @@ bu$sta:	mov	#1,s$ysta-$$	; default start state
 20$:	return
 
 
-;	BU$ACT - Batch Start/Run program
+;	BU$ACT - Batch Start/Run program common
 
 	.enabl	lsb
 bu$act:	cmp	#1,s$ysta-$$;	; LDA?
@@ -1393,6 +1404,8 @@ bu$exi:	mov	30$,sp		; restore stack
 
 ;	Batch RUN command
 ;
+;	See the CLI RUN command description for the algorithm here
+;
 ;	R file[/repeat][address]
 
 bc$run:	ParFld			; get a filespec
@@ -1406,31 +1419,46 @@ bc$run:	ParFld			; get a filespec
 
 ;	Batch CHAIN command
 ;
-;	C filespec [/switches]
+;	C filnam.typ
 ;
-;	Batch supports one level of chain nesting
-;	No checks are made to see if additional nesting takes place
-;	More accurately, batch allows a single return level
+;	The batch chain command does not accept switches	(note)
+;	The batch chain command must have an explicit file type	(note)
 ;
-;	cl$chn appends ".CCC" to the "filnam" but bc$chn does not   (note)
+;	Batch officially supports one level of chain nesting.	(note)
+;	However, no checks are made to see if additional nesting takes
+;	place. More accurately, batch allows a single return level.
 
 bc$chn:	ParFld			; get a filespec
 	 br	10$		; fail
+
+;	Invoke the batch engine recursively
+
 	PshBat			; up chain level and open batch file
 	mov	b$astk,-(sp)	; save the current batch stack
+				;
 	call	ba$eng		; call the batch engine
+				;
 	mov	(sp)+,b$astk	; restore our stack
 	PopBat			; pop nest chain file, return to prior
+				;
 10$:	return
 
 
 ;	Batch GOTO command
 ;
+;
 ;	GOTO label
+;	...
+;	label:
 ;
-;	label
+;	Batch first searches forward through the file. It rewinds   (note)
+;	to the beginning of the file if the forward search fails. If that
+;	forward search fails, it again rewinds, and so, forever. It may be
+;	yet another code space saving device.
 ;
-;	Will GOTO will loop forever if a label is not found?	(note)
+;	There's an omitted branch just before 40$ that saves another (note)
+;	word, relying on the ParFld that follows to fail and branch
+;	back to 30$.
 
 bc$gto:	mov	#s$ygto,r2	; batch goto buffer
 	add	s$yrel-$$,r2	; relocate
@@ -1447,7 +1475,7 @@ bc$gto:	mov	#s$ygto,r2	; batch goto buffer
 				;
 	clr	f$ipos-$$	; hit EOF - rewind batch file
 	clr	f$isck-$$	; clear save checksum to force read
-				; ParFld fails back to 30$ for us
+       ;br	30$		; ParFld fails back to 30$ for us   (note)
 40$:	ParFld			; get the first field on the line
 	 br	30$		; no field 
 	cmpb	r1,#':		; LABEL: ?
@@ -1486,11 +1514,18 @@ bc$qui:	comb	s$yqui-$$	; flip the quiet flop
 
 
 ;	Batch PRINT command
+;
+;	PRINT some-message...
+;
+;	ParFld returns a pointer to "some-message..."
 
 bc$prt:	ParFld			; parse anything into the field
 	 br	bu$new		; nothing - so just newline
 	TypBrk			; r0 -> display message 
 	fall	bu$new		; add newline
+
+
+;	BU$NEW - Display newline utility
 
 bu$new:	mov	#t$enew-$$,r0	; .byte cr,lf,0
 	add	pc,r0		; double
@@ -1500,6 +1535,7 @@ bu$new:	mov	#t$enew-$$,r0	; .byte cr,lf,0
 .sbttl	If IfLMD IfERR CMI SMI Enable				(batch)
 
 ;	No terminator separates "THEN" from "END"		(note)
+;	Were they were trying to find yet another free word?
 
 b$athn:	.ascii	"THEN"
 b$aend:	.ascii	"END"<377>
@@ -1518,7 +1554,14 @@ bc$ift:	ParFld			; r0 -> condition switch
 	fall	bu$tru		; 
 
 
-;	BU$TRU - Condition true - gobble "THEN"
+;	BU$TRU - Condition true utility
+;
+;	For a true condition we need to parse our way past the
+;	THEN token.
+;
+;	IFx <true condition> THEN
+;	...
+;	END
 ;
 ;	B$ATHN actually points to "THENEND"			(note)
 
@@ -1532,13 +1575,24 @@ bu$tru:	ParFld			; get yet another field
 	bne	bu$err		; nope - bummer
 	br	bu$nop		; yep
 
-;	BU$FAL - Condition false - search for "END"
+;	BU$FAL - Condition false utility
+;
+;	IF <false-condition> THEN
+;	...
+;	END
+;
+;	For a false condition we need to search for the next
+;	END statement (there is no nesting of IF-END).
+;
 
 bu$fal:	GetLin			; search chain file for "END"
 	 bcc	bu$nop		; EOF - we're all done
 	fall	bc$end		;
 
 ;	Batch END command
+;
+;	I don't know why the batch END command comes here.
+;	The batch command dispatcher has
 
 bc$end:	mov	#b$aend-10$,r2	; END
 	add	pc,r2
@@ -1905,7 +1959,9 @@ TypMon:	add	pc,r0
 
 ;	TypMsg - Type message service				(EMT 3)
 ;	
-;	zero terminates
+;	in	r0 ->	zero-terminated message
+;
+;	burnt	r0
 
 TypMsg:	tstb	s$yqui		; are we quiet?
 	bmi	20$		; yes - ignore this
@@ -1919,8 +1975,11 @@ TypMsg:	tstb	s$yqui		; are we quiet?
 
 ;	TypBrk - Type Breakthrough message service		(EMT 44)
 ;
-;	Breakthrough type
 ;	Display message even in quiet mode
+;
+;	in	r0 ->	zero-terminated message
+;
+;	burnt	r0
 
 TypBrk:	movb	s$yqui,-(sp)	; save quiet mode flag
 	clrb	s$yqui		; switch off quiet mode
@@ -2016,7 +2075,7 @@ NewLin:	mov	#t$enew,r0	; newline string
 
 ;	PutTab service						(EMT 10)
 ;
-;	Advances to next tab stop
+;	Advances to next 8-column tab stop
 
 PutTab:	movb	#space,r0	; a space
 	PutChk			; output
@@ -2065,18 +2124,15 @@ ParOct:	ParFld			; r0 -> field
 
 ;	OpnFil - Open file service				(EMT 12)
 ;
-;	Space-fill filename area
-;	Move in file name
+;	in	r0 ->	ascii "filnam.typ"
 ;
-;	Converts rad50 filename to 12-byte ascii string
+;	out	r1	burnt
+;
+;	Formats the spec as space-filled template
 ;	Where "_" represents the space, the name "XXX.SYS" becomes:
 ;
 ;	"XXX___.SYS"
 ;	 0123456789"
-;
-;	r1 is modified
-;
-; fix	r3 not updated after "."
 
 OpnFil:	mov	#d$riob,r5	; IOB
 	add	s$yrel,r5	; r5 -> IOB
@@ -2099,7 +2155,7 @@ OpnFil:	mov	#d$riob,r5	; IOB
 	bne	30$		; no
 	mov	r1,r2		; yes, position at byte six
 	add	#6,r2		; of the output string
-;;;	mov	#3,r3		; count is now three, for the file type
+				; count is now three, for the file type
 30$:	movb	(r0)+,(r2)+	; copy one more
 	dec	r3		; until all done
 	bgt	20$		;
@@ -2128,7 +2184,7 @@ CloFil:	return			; much ado about nothing
 ; 	r2 ->	past ascii 
 ;	r3/r4	burnt	
 
-su$unp:	mov	pc,r4	;mova	;
+su$unp:	mov	pc,r4		;
 	add	#80$-.,r4	; rad50 divisors
 20$:	clr	r3		; result integer
 30$:	cmp	(r4),r0		; got another subtraction?
@@ -2196,13 +2252,13 @@ GetDat:	mov	s$ydat,r0	; 1970-1999
 ;	Convert an octal value to an ascii string
 ;	Strings are zero-filled (e.g. value=1 => string="000001")
 ;
-;	r0 =	value
-;	r1 ->	output buffer
+;	in	r0 =	value
+;		r1 ->	output buffer
 ;
-;	OctAsc
+;		OctAsc
 ;
-;	r1 ->	past last (sixth) digit
-;	r0	burnt
+;	out	r0	burnt
+;		r1 ->	past last (sixth) digit
 
 OctAsc:	mov	r0,r3		; r3 = value
 	mov	#6,r4		; r4 = counter
@@ -2327,10 +2383,11 @@ PopBat:	incb	s$ypop		; flag pop (not push)
 
 ;	PshBat - Push batch chain file service			(EMT 41)
 ;
-;	in	r0 ->	"filnam"
+;	in	r0 ->	"filnam" field
+;		r1 =	field terminator
 ;
 ;	out	r0 ->	end of copied "filnam" string
-;		r1 =	terminator (unused)
+;		r1 =	terminator
 
 PshBat:	clr	f$isck		; invalidate batch saved checksum
 				;
@@ -2388,8 +2445,11 @@ PshBat:	clr	f$isck		; invalidate batch saved checksum
 ;		GetCom
 ;
 ;	out	r0 ->	s$ycom
+;
+;	UPD1 emits GetCom as part of its startup procedure, however
+;	it seems to reference a nonsense location in the high syscom.
 
-GetCom:	mov	#s$ycom,r0	; point to s$ycsr
+GetCom:	mov	#s$ycom,r0	; point to s$ycom
 	add	s$yrel,r0	; relocate
 	return
 .sbttl	XXDP CLI Engine						(CLI)
@@ -2397,7 +2457,6 @@ x$xper:				; 12000
 
 ;	The area 12000:14000 is reread from disk on chain exit
 ;	Thus there should be no impure data in this area
-;	However, there is one impure value from the boot
 
 o$vreg:				; overlay region
 o$vcli:				; CLI overlay block
@@ -2498,9 +2557,9 @@ cl$dis:	tst	c$laut		; automated startup?
 
 70$:	mov	(r4),r4		; r4 = command address
 	add	s$yrel,r4	; relocate
-				;
-;	Call CLI command routine;
-;				;
+				
+;	Call CLI command routine
+;				
 	call	(r4)		; command dispatch
 80$:	return			; good
 
@@ -2545,6 +2604,11 @@ c$ltst:	.word	cl$tst		; TEST
 ;	TEST[/QV]
 ;
 ;	Equivalent to "C SYSTEM.CCC"
+;
+;	TEST is automatically invoked if location @#1002 (i$naut) of  
+;	the monitor image is non-zero at boot time. Most of the monitor
+;	startup messages are muted. In V2 the @#1002 flag is replaced
+;	by a "QUIET" command in the startup command file BOOT.CCC.
 
 	.enabl	lsb
 10$:	.asciz	"SYSTEM.CCC"	; the system chain file
@@ -2571,11 +2635,11 @@ c$sqvs:	.ascii	"QV"<0><0>	; "QV" - Quick Verify switch
 ;	C filnam[/QV]
 
 	.enabl	lsb
-cl$chn:	ParFld.			; get the field
+cl$chn:	ParFld			; get the field
 	 br	20$		; invalid filename
-	PshBat			; set batch mode
-	movb	#'.,(r0)+	; r0 -> past "filnam"
-	mov	#3,r2		; counter
+	PshBat			; r0 -> end of copied file spec
+	movb	#'.,(r0)+	; add filetype ".CCC"
+	mov	#3,r2		; (see CL$LOA for file spec processing)
 10$:	movb	#'C,(r0)+	; ".CCC"
 	dec	r2		; all three
 	bne	10$		;
@@ -2603,8 +2667,10 @@ cu$chn:	mov	#mobat.,r2	; block = 6 (location 6000)
 
 ;	CU$QVS - Parse /QV quick verify switch
 ;
-;	Called by CLI Chain and TEST commands
-;	There is no error reported for "/XX" etc.		(note)
+;	Called by CLI Chain and TEST commands to store switches
+;	and to check for the /QV switch
+;
+;	There is no error reported for unidentified switches	(note)
 
 cu$qvs:	mov	#s$yswi,r2	; /switch buffer
 	add	s$yrel,r2	;
@@ -2625,10 +2691,6 @@ cu$ret:	return			; (LoaSup return path passes through here)
 ;	CLI HELP command
 ;
 ;	H/L	Help Lineprinter
-;
-;	Documented in the XXDP+ User Guide
-;	Not listed in the XXDP+ HELP command
-;	Not documented the XXDPx User Guide
 
 cl$hlp:	ParFld
 	 br	10$		; is no "/L" field
@@ -2653,6 +2715,16 @@ cl$hlp:	ParFld
 
 
 ;	CLI FILL command
+;
+;	The Fill command first displays the prevailing fill count.
+;	The user either enters a new fill count, or just newline
+;	to leave the fill count unchanged.
+;
+;	F
+;	000001<enter>		The fill count is unchanged
+
+;	F
+;	000001 5		The fill count is changed to five
 
 cl$fil:	movb	s$ypad,r0	; the prevaling state
 	mov	c$llin,r1	; temporary buffer
@@ -2670,8 +2742,16 @@ cl$fil:	movb	s$ypad,r0	; the prevaling state
 
 ;	CLI ENABLE command
 ;
-;	@dr.dev (dr$dev) updates the device ascii unit (dv.uni) 
-;	The CLI code for this command is identical
+;	The ENABLE command allows a user to choose a particular unit
+;	of the system device.
+;
+;	E 1		Change the unit to unit #1
+;
+;	dr.dev (dr$dev) updates the device ascii unit (dv.uni) 
+;	The batch code for this command is identical
+;
+;	There's an assumption here that the new unit will have
+;	the same device monitor placement as the prevailing unit.
 
 cl$enb:	ParOct			; get a number
 	 br	10$		; not a number
@@ -2683,6 +2763,14 @@ cl$enb:	ParOct			; get a number
 
 
 ;	CLI DIRECTORY command
+;
+;	D[/L][/F]
+;
+;	/L	Output to the lineprinter
+;	/F	Output a short-form "fast" directory
+;
+;	HUDI??.SYS is loaded to perform the primitive directory operation 
+;	which does not permit file specs, let alone wildcards.
 
 cl$dir:	mov	pc,r0		; point at the file spec
 	add	#10$-.,r0	; "HUDI??.SYS"
@@ -2696,14 +2784,23 @@ cl$dir:	mov	pc,r0		; point at the file spec
 
 ;	CLI LOAD command
 ;
-;	L filename
+;	L filnam[.typ]
 ;
-;	XXDP appends the file type ".BI?" to the file name
+;	XXDP appends the file type ".BI?" to the file specification,
+;	regardless of whether user specifies a file type or not:
 ;
-;	cu$loa called by cl$run
+;	filnam.BI?		no file type specified
+;	filnam.typ.BIC		file type specified
+;
+;	This works because of the parsing strategy of OpnFil which
+;	effectively ignores a second ".BI?", if present. It will fail
+;	if the user specifies a filetype with less than three characters.
+;
+;	CL$RUN uses this routine to load an image. See CL$RUN for a
+;	workaround to the LoaFil strategy.
 
 cl$loa::incb	s$yloa		; display file spec
-cu$loa:	ParFld			; get ye field
+cu$loa:	ParFld			; get ye field 	(cu$run EPT)
 	 br	20$		; invalid filename (doesn't clear s$yloa)
 	mov	r0,-(sp)	; r0 -> field
 10$:	cmpb	(r0)+,r1	; same as terminator?
@@ -2796,12 +2893,14 @@ cu$act:	cmp	#1,s$ysta	; maintenance app?
 ;
 ;	R filnam [start address]
 ;
-;	CL$LOA to parses the filename and loads the image
-;	However, CL$LOA does not accept a start address
-;	So, CL$RUN skips past the file spec (ParFld)
-;	Saves the C$LFLD pointer
-;	Calls CU$STA to pickup the file spec
-;	Restores the filespec pointer 
+;	RUN uses CU$LOA to parse the filename and load the image.
+;	However, the Load command does not accept a start address,
+;	and in fact overwrites the end of its filename field with the
+;	the default file type (".BI?").
+;
+;	So, RUN initially skips the filename field (ParFld below),
+;	and calls CU$STA to pickup the start address. It then restores
+;	the initial field and calls CU$LOA to parse and load the image.
 ;
 ;	s$yrun is checked as the high byte of s$yloa
 
@@ -2828,7 +2927,8 @@ cl$run:	ParFld			; get filespec
 
 ;	CU$SWI - Check Batch IF and CLI CHAIN/TEST /QV switches
 ;
-;	CU$SWI sits just outside the CLI/Batch overlay region
+;	CU$SWI sits just outside the CLI/Batch overlay region and is 
+;	called by both CLI and Batch routines.
 ;
 ;	in	r0 ->	candidate switch "XX"
 ;	
