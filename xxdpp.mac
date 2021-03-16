@@ -978,7 +978,7 @@ in$fin:	tst	@#i$naut	; automated?
 
 in$dat:	mov	#i$ment,r0	; ENTER DATE..
 	TypMon			;
-	call	in$pdt		; parse date
+	call	in$ymd		; parse year, month, day
 	 br	10$		; failed
 	return			; fine
 10$:	mov	#i$mdat,r0	; INVALID DATE
@@ -1006,7 +1006,7 @@ i$mxdp:	.ascii	|THIS IS XXDP+.  TYPE "H" OR "H/L" FOR HELP.|<cr><lf>
 	.word	0	;5240	;			(savm)(slip)(note)
 	.word	0	;5242	;
 
-;	IN$PDT - Parse date
+;	IN$PDT - Parse date year-month-day
 ;
 ;	Convert DD-MON-YY to DOSbatch date format
 ;
@@ -1014,7 +1014,7 @@ i$mxdp:	.ascii	|THIS IS XXDP+.  TYPE "H" OR "H/L" FOR HELP.|<cr><lf>
 ;
 ;	day-of-year begins with 1, not 0
 
-in$pdt:	clr	s$ydat		; clear result
+in$ymd:	clr	s$ydat		; clear result
 	GetLin			; get a response
 	ParFld			; parse the first field
 	 nop			;
@@ -1074,9 +1074,14 @@ in$pdt:	clr	s$ydat		; clear result
 ;	Parse Day
 ;
 ; out	r0	day (1:31)
+;
+;	The <br 10$> following ParDec should be <br 20$> as is  (bug)(note)
+;	the analogous case for DT$MON and DT$YEA. Because of 
+;	this bug XXDP+ will accept almost anything in the day 
+;	field (e.g. "XX-APR-70").
 
 dt$day:	ParDec			; get day-in-month
-	 br	10$		; error
+	 br	10$		; errors are aren't errors here!(bug)(note)
 	cmpb	r1,#'-		; must be dd-mmm-yy
 	bne	20$		; but isn't
 	tst	r0		; can't be zero
@@ -1108,6 +1113,7 @@ dt$mon:	ParFld			; get something
 	cmp	r0,#11.		; more months to come?
 30$:	ble	10$		; yep
 	br	50$		; way too much to ask
+				;
 40$:	 add	#2,(sp)		; fine
 50$:	return			; fail
 
@@ -1129,9 +1135,9 @@ dt$yea:	ParDec			; get a year
 	cmp	r0,#99.		; 1999 ends our world
 	bgt	10$		;  to set it right
 	sub	#70.,r0		; 1970 starts it
-	blt	10$		;  into the breach once more
-	 add	#2,(sp)		; good
-10$:	return
+	blt	10$		;  error - year is before 1970
+	 add	#2,(sp)		; fine
+10$:	return			; fail
 
 ;	IO$IOB - Relocate IOB						(init)
 
@@ -1187,15 +1193,17 @@ ba$cmd:	mov	pc,r0
 	add	#ba$abt-.,r0	;
 	SetAbt	;ba$abt		; generic batch command abort
 	GetLin			; get something
-	 bcc	bc$qut		; a whole lot of nothing
+	 bcc	ba$exi		; end of chain file
 	br	ba$dis		; dispatch command
 
 
-;	Batch QUIT command
+;	Batch QUIT command and BA$EXI
 ;
 ;	Cancels batch file and returns to CLI
+;	BA$CMD and BA$ABT branch here for batch EOF and abort
 
-bc$qut:	mov	b$astk,sp	; nix - restore stack
+ba$exi:
+bc$qit:	mov	b$astk,sp	; nix - restore stack
 	return
 
 
@@ -1208,7 +1216,7 @@ ba$abt:	tst	r0		; got an abort message?
 	add	pc,r0		; relocate
 	sub	#.,r0		;
 	TypBrk			; breakthrough message
-30$:	br	bc$qut		; quit batch
+30$:	br	ba$exi		; quit batch
 
 
 ;	Batch dispatch table
@@ -1232,7 +1240,7 @@ b$adis:	.word	bc$smi+$$  ; SMI
 	.word	bc$qui+$$  ; Quiet
 	.word	bc$prt+$$  ; Print
 	.word	bc$end+$$  ; End
-	.word	bc$qut+$$  ; Quit
+	.word	bc$qit+$$  ; Quit
 	.word	bc$ilm+$$  ; Iflmd 
 	.word	bc$ier+$$  ; Iferr
 	.word	bc$ift+$$  ; If
@@ -1487,7 +1495,7 @@ bc$gto:	mov	#s$ygto,r2	; batch goto buffer
 	clrb	(r4)		; zero the end of the buffer string
 20$:	decb	s$yqui-$$	; mute quiet mode for messages
 30$:	GetLin			; search forward for the label
-	 bcs	40$		; got a good line
+	bcs	40$		; got a good line
 				;
 	clr	f$ipos-$$	; hit EOF - rewind batch file
 	clr	f$isck-$$	; clear save checksum to force read
@@ -2978,35 +2986,92 @@ cu$swi:	mov	#s$yswi-10$,r2	; the switch buffer
 60$:	return
 .sbttl	EMT Engine						(EMT)
 
+;	EM$ENG - EMT system service dispatch engine
+;
+;	EMT calling procedure:
+;
+;	Registers are used to pass information to and from servicesi
+;	as required.
+;
+;	mov	arg1,r0
+;	mov	arg2,r1
+;	mov	arg3,r2
+;	emt	xxx
+;
+;	There are four system service return paths:
+;
+;	NEUTRAL:
+;	Services such as GetCom or GetDat have no error conditions.
+;
+;	SKIP:
+;	The service returns to the location immediately following the
+;	EMT for a "fail" condition, but skips that location for a "fine"
+;	condition. In the example below the "fail" path is taken for
+;	EOL (end of line) or EOF (end of file).
+;
+;		GetFld
+;		 br	eol	; fail
+;		...		; fine
+;
+;	The fail instruction may only be a single word instruction.
+;	It is traditionally indented by a single space to remind us
+;	of its usage.
+;
+;	The skip return is employed within the monitor itself. It is
+;	used systematically by IN$YMD to parse the year, month and day.
+;	Each sub-routine ends as below. The (indented) <add #2,(sp)>
+;	creates the skip.
+;
+;	dt$yea:	...
+;		sub	#70.,r0		; 1970 starts it
+;		blt	10$		; error - year is before 1970
+;		 add	#2,(sp)		; fine
+;	10$:	return			; fail
+;
+;	System service calls trigger the skip by modifying the EMT call
+;	routine return address on the stack.
+;
+;	BCC FAIL
+;	Some services use the carry bit to report status. Common PDP-11
+;	usage is to report errors with the carry-set condition. XXDP+
+;	uses carry-clear to report failure for services and some 
+;	routines. Confusingly, a couple of routines use carry-set.
+;
+;		GetLin		; get a command line
+;		bcc	eof	; end of file
+;		...
+
+;	ABORT:
+;	Ctrl/C, checksum errors, media read errors and file-not-found
+;	use the system SetAbt/JmpAbt mechanism to report errors.
+;	
+;	Register usage:
+;
+;	R0/R1	R0/R1 are the workhorse for service arguments and results.
+;		The dispatcher does not save/restore R0 or R1, however
+;		service routines modify R0/R1 only when functionally
+;		appropriate. 
+;
+;	R2..R4	R2, R3 and R4 are saved/restored by the dispatcher.
+;		Two services (SpcAsc & CmpSpc) pass arguments in R2.
+;
+;	R5	R5 is not saved/restored by the dispatcher. R5 is reserved
+;		exclusively for its use as a pointer to the I/O control
+;		block. Utilities must preserve the monitor R5 setting.
+
+
 ;	EM$RST - Restore EMT vector
+;
+;	Diagnostics are free to obliterate the EMT vector (@#30/32)
+;	EM$RST is called CLI system restart, CLI and batch image exit,
+;	to restore the EMT vector.
 
 em$rst:	mov	#em$eng,@#v$eemt 	; rebuild EMT vector
 	add	s$yrel,@#v$eemt		; relocate
 	mov	#340,@#v$eemt+2		; PR7
 	return
 
-;	EM$ENG - EMT dispatch engine
-;
-;	EMT calls:
-;
-;	mov	arg1,r0
-;	mov	arg2,r1
-;	mov	arg3,r2
-;	emt	xxx
-;      [br	error]		; 
-;      [bcc	error]	
-;
-;	bcs	okay	.gtcmd .rdbyt .rdwrd (.gtchk reverse?)
-;	bcc	ctrlc	
-;
-;	Register usage:
-;
-;	r5	IOB   saved (not saved by XXDP)
-;	r4	      saved
-;	r3	      saved
-;	r2	arg3  saved
-;	r1	arg2	    is carefully preserved
-;	r0	arg1
+;	EM$ENG - The EMT dispatcher (as described above)
 
 	stack	r2,r3,r4,pc,ps
 em$eng:	mov	r4,-(sp)		; r5 shared
@@ -3014,6 +3079,7 @@ em$eng:	mov	r4,-(sp)		; r5 shared
 	mov	r2,-(sp)		; r0/r1 - arguments/results
 					;
 	bic	#cbit,sp.ps(sp)		; clear return c-bit
+					;
 	mov	sp.pc(sp),r4		; get the pc
 	movb	-2(r4),r4		; get the (unsigned) EMT code (sanity)
 	asl	r4			; make bytes, not words
@@ -3026,8 +3092,8 @@ em$eng:	mov	r4,-(sp)		; r5 shared
 ;	Call EMT service		;
 ;					;
 	call	(r4)			;\call the thing
-	 br	20$		;plain	;|don't alter return address
-	 add	#2,sp.pc(sp)	;skip	;/propagate skip return
+	 br	20$		;plain	;| fail - don't alter return address
+	 add	#2,sp.pc(sp)	;skip	;/ fine -propagate skip return
 					;
 20$:	mov	(sp)+,r2		; restore registers
 	mov	(sp)+,r3		;
@@ -3132,7 +3198,7 @@ x$xsta:				; overlay end, static begin
 
 ;	MO$CHN - Chain completion
 ;
-;	Copy batch to overlay region
+;	Copy batch region to overlay region
 ;	Call the batch engine
 ;	Restore monitor CLI context
 ;
@@ -3223,7 +3289,9 @@ f$irec:	.blkw	256.-1	;14534	;| input record
 	;....		;15531	;| record top
 	.word	0	;15532	;/ buffer parse & print terminator
 
-;	Monitor communication area
+;	High memory syscom area
+;
+;	GetCom returns a pointer to S$YCOM.
 
 s$ycom:
 s$ycsr:	.word	0	;15534	;\ CSR address			(init)
