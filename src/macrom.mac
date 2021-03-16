@@ -1,0 +1,634 @@
+;;;	MACROM.MAC (earlier: MACLIB.MAC) is the XXDP+ system macro library
+;;;	My comments (IJH) are marked with a triple semicolon (;;;)
+
+.NLIST
+;+
+; This .NLIST is here so that MACLIB.MAC is not included in the listing file.
+;-
+
+;+
+; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+;
+; MACROM.MAC
+;
+; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+;-
+
+.NLIST
+
+;MACRO-PACKAGE REVISION HISTORY
+;-----------------------------------------------------------------------------
+;REVISION	DATE	 CHANGE
+;-------- --------- ----------------------------------------------
+; 1.0	 25-MAY-78	INITIAL ISSUE
+; 1.1	 31-MAY-78	DELETE $BKREAD AND $NXTBLK MACRO DEFINITIONS
+; 1.2	  6-JUN-78	ADDED $CHKSUM MACRO
+; 1.3	  8-JUL-78	DELETE .PTRRD, .BMOVE, .SCHAIN, AND .ABORT MACRO DEFINITIONS
+;	 		ADD .SETERR AND .ERROR MACRO DEFINITIONS
+; 2.0	  8-JUL-78	FIELD TEST VERSION
+; 2.1	 12-JUL-78	ADD $ABORT DEFINITION; REMOVE $NXTBLK DEFINITION
+; 2.2	 22-AUG-78	ADD MACFO DEFINITIONS FOR ROUTINES MOVED FROM DRIVERS
+			TO DRVCOM
+; 3.0	 20-JUL-80	MAKE CHANGES MARKED BY 		 ;MAC001
+;	 28-OCT-80	REMOVED $REMAIN MACRO	 	 ;MAC002
+;	 31-OCT-80	ADDED .FRCTYP AND .CHKCC	 ;RWB001
+;			CHANGED .ERROR TO USE R0	 ;RWB001
+;
+;-----------------------------------------------------------------------------
+
+
+;THE FOLLOWING MACROS GENERATE EMT CALLS
+;***************************************
+
+;------------------------ .GCMDST ------------------------
+;;;	Get Command String
+
+.MACRO	.GCMDST
+.NARG	NARGS
+.IF	NE,NARGS
+.ERROR	A	;NO ARGUMENTS REQUIRED
+.ENDC
+.IF	EQ,NARGS
+EMT	0
+NOP
+.ENDC
+.ENDM	
+
+.MACRO	.GTOKEN
+EMT	1
+.ENDM	.GTOKEN
+
+.MACRO	.PUTLIN ARG1
+.NARG	NARGS
+.IF	NE,NARGS
+.NTYPE	NTYPE,ARG1
+.IF	NE,NTYPE
+MOV	ARG1,R0
+.ENDC
+.ENDC
+EMT	2
+.ENDM	.PUTLIN
+
+;------------------------ .TYPMSG ------------------------
+
+.MACRO	.TYPMSG ARG1
+.NARG	NARGS
+.IF	NE,NARGS-1
+.ERROR	A	;EITHER TOO MANY OR NOT ENOUGH ARGUMENTS SPECIFIED
+.ENDC
+.IF	EQ,NARGS-1
+MOV	PC,R0
+ADD	ARG1-.,R0
+EMT	3
+.ENDC
+.ENDM	.TYPMSG
+
+;------------------------ .PUTCHR ------------------------
+
+.MACRO	.PUTCHR	ARG1
+.NARG	NARGS
+.IF	EQ,NARGS
+EMT	4
+.ENDC
+.IF	EQ,NARGS-1
+MOVB	ARG1,R0
+EMT	4
+.ENDC
+.ENDM	.PUTCHR
+
+.MACRO	.CKYBD
+EMT	5
+.ENDM	.CKYBD
+
+;------------------------ .GETCHR ------------------------
+
+.MACRO	.GETCHR
+.NARG	NARGS
+.IF	NE,NARGS
+.ERROR	A	;NO ARGUMENTS REQUIRED
+.ENDC
+.IF	EQ,NARGS
+EMT	6
+NOP
+.ENDC
+.ENDM	.GETCHR
+
+;------------------------ .CRLF ------------------------
+
+.MACRO	.CRLF
+.NARG	NARGS
+.IF	NE,NARGS
+.ERROR	A	;NO ARGUMENTS REQUIRED
+.ENDC
+.IF	EQ,NARGS
+EMT	7
+.ENDC
+.ENDM	.CRLF
+
+
+
+;------------------------ .TABS ------------------------
+
+.MACRO	.TABS
+.NARG	NARGS
+.IF	NE,NARGS
+.ERROR	A	;NO ARGUMENTS REQUIRED
+.ENDC
+.IF	EQ,NARGS
+EMT	10
+.ENDC
+.ENDM	.TABS
+
+;------------------------ .GETNUM ------------------------
+.MACRO	.GETNUM	ARG1
+.NARG	NARGS
+.IF	NE,NARGS-1
+.ERROR	A	;EITHER TOO MANY OR NOT ENOUGH ARGUMENTS SPECIFIED
+.ENDC
+.IF	EQ,NARGS-1
+EMT	11
+BR	ARG1
+.ENDC
+.ENDM	.GETNUM
+
+.MACRO	.OPEN	ARG1
+.NARG	NARGS
+.IF	NE,NARGS
+.NTYPE	NTYPE,ARG1
+.IF	NE,NTYPE
+MOV	ARG1,R0
+.ENDC
+.ENDC
+EMT	12
+.ENDM	.OPEN
+
+.MACRO	.CLOSE
+EMT	13
+.ENDM	.CLOSE
+
+.MACRO	.LOAD	ARG1,ARG2
+.IF NB ARG1
+.NTYPE	NTYPE,ARG1
+.NARG	NARGS
+.IF	NE,NTYPE
+MOV	ARG1,R0
+.ENDC
+.ENDC
+.IF	NB ARG2
+.NTYPE	NTYPE,ARG2
+.IF IDN ARG2,<#0>
+.IFT
+CLR	R1
+.IFF
+MOV	ARG2,R1
+.ENDC
+.IFF
+CLR	R1
+.ENDC
+EMT	14
+.ENDM	.LOAD
+
+.MACRO	.GETWRD
+EMT	15
+.ENDM	.GETWRD
+
+.MACRO	.GETBYT
+EMT	16
+.ENDM	.GETBYT
+
+.MACRO	.ONECHR
+EMT	17
+.ENDM	.ONECHR
+
+
+
+.MACRO	.NXTBLK
+EMT	20
+.ENDM	.NXTBLK
+
+.MACRO	.BKREAD
+EMT	21
+.ENDM	.BKREAD
+
+;;;	.SETERR and .ERROR were late additions
+;;;	probably filling a slots left by deletions
+;;;
+;;;	The .ERROR macro has the same name as the MACRO .ERROR directive
+;;;	I don't see how the two can co-exist...
+
+.MACRO	.SETERR
+EMT	22
+.ENDM	.SETERR
+
+.MACRO	.ERROR ARG1
+.NARG	NARGS
+.IF	NE,NARGS
+.IFT
+MOV	ARG1,R0
+.IFF
+CLR	R0
+.ENDC
+EMT	23
+.ENDM	.ERROR
+
+.MACRO	.CMPNAM
+EMT	24
+.ENDM	.CMPNAM
+
+.MACRO	.UPKNAM
+EMT	25
+.ENDM	.UPKNAM
+
+;----------------------- .KSWITCH ------------------------
+
+.MACRO	.KSWITCH	ARG1,ARG2
+.NARG	NARGS
+.IF	NE,NARGS-2
+.ERROR	A	;EITHER TOO MANY OR NOT ENOUGH ARGUMENTS SPECIFIED
+.ENDC
+.IF	EQ,NARGS-2
+MOV	PC,R0
+ADD	ARG1-.,R0
+MOV	ARG2,R1
+EMT	26
+.ENDC
+.ENDM	.KSWITCH
+
+.MACRO	.DATE
+EMT	27
+.ENDM	.DATE
+
+
+
+;------------------------ .ITOA ------------------------
+
+.MACRO	.ITOA	ARG1,ARG2
+.NARG	NARGS
+.IF	NE,NARGS-2
+.ERROR	B	;EITHER TOO MANY OR NOT ENOUGH ARGUMENTS SPECIFIED
+.ENDC
+.IF	EQ,NARGS-2
+MOV	ARG1,R0
+MOV	PC,R1
+ADD	ARG2-.,R1
+EMT	30
+.ENDC
+.ENDM	.ITOA
+
+.MACRO	.DEFAULT
+EMT	31
+.ENDM	.DEFAULT
+
+.MACRO	.RTOKEN
+EMT	32
+.ENDM	.RTOKEN
+
+;----------------------- .LINEPTR ------------------------
+
+.MACRO	.LINEPTR
+.NARG	NARGS
+.IF	NE,NARGS
+.ERROR	A	;NO ARGUMENTS REQUIRED
+.ENDC
+.IF	EQ,NARGS
+EMT	33
+.ENDC
+.ENDM	.LINEPTR
+
+;----------------------- .NOPRTR ------------------------
+
+.MACRO	.NOPRTR
+.NARG	NARGS
+.IF	NE,NARGS
+.ERROR	A	;NO ARGUMENTS REQUIRED
+.ENDC
+.IF	EQ,NARGS
+EMT	34
+.ENDC
+.ENDM	.NOPRTR
+
+.MACRO	.AUTOLOAD
+EMT	35
+.ENDM	.AUTOLOAD
+
+;------------------------ .GETDEC ------------------------
+
+.MACRO	.GETDEC	ARG1
+.NARG	NARGS
+.IF	NE,NARGS-1
+.ERROR	A	;EITHER TOO MANY OR NOT ENOUGH ARGUMENTS SPECIFIED
+.ENDC
+.IF	EQ,NARGS-1
+EMT	36
+BR	ARG1
+.ENDC
+.ENDM	.GETDEC
+
+.MACRO	.FILL
+EMT	37
+.ENDM	.FILL
+
+.MACRO	.PUTSCP
+EMT	40
+.ENDM	.PUTSCP
+
+.MACRO	.CCHAIN
+EMT	41
+.ENDM	.CCHAIN
+
+.MACRO	.COMM
+EMT	42
+.ENDM	.COMM
+
+.MACRO .RDRIVE
+EMT	43
+.ENDM	.RDRIVE
+
+;------------------------ .FRCTYP ------------------------
+
+.MACRO	.FRCTYP ARG1
+.NARG	NARGS
+.IF	NE,NARGS-1
+.ERROR	A	;EITHER TOO MANY OR NOT ENOUGH ARGUMENTS SPECIFIED
+.ENDC
+.IF	EQ,NARGS-1
+MOV	PC,R0
+ADD	ARG1-.,R0
+EMT	44
+.ENDC
+.ENDM	.FRCTYP
+
+.MACRO	.CHKCC
+EMT	45
+.ENDM	.CHKCC
+
+
+;;;	46/47 missing here
+;;;	46 loads DATE.SYS under XXDPSM
+
+;;;	The following might be the DRVCOM group added (see above)
+
+
+;------------------------ .LKUP ------------------------
+
+.MACRO	.LKUP	ARG1
+.NARG	NARGS
+.IF	NE,NARGS-1
+.ERROR	A	;EITHER TOO MANY OR NOT ENOUGH ARGUMENTS SPECIFIED
+.ENDC
+.IF	EQ,NARGS-1
+MOV	PC,R0
+ADD	ARG1-.,R0
+EMT	50
+.ENDC
+.ENDM	.LKUP
+
+;------------------------ .WRTODV ------------------------
+
+.MACRO	.WRTODV	ARG1
+.NARG	NARGS
+.IF	NE,NARGS-1
+.ERROR	A	;EITHER TOO MANY OR NOT ENOUGH ARGUMENTS SPECIFIED
+.ENDC
+.IF	EQ,NARGS-1
+MOV	ARG1,R0
+EMT	51
+.ENDC
+.ENDM	.WRTODV
+
+;------------------------ .CLSFIL ------------------------
+
+.MACRO	.CLSFIL
+.NARG	NARGS
+.IF	NE,NARGS
+.ERROR	A	;NO ARGUMENTS REQUIRED
+.ENDC
+.IF	EQ,NARGS
+EMT	52
+.ENDC
+.ENDM	.CLSFIL
+
+;------------------------ .READBIN ------------------------
+
+.MACRO	.READBIN	ARG1
+.NARG	NARGS
+.IF	NE,NARGS-1
+.ERROR	A	;EITHER TOO MANY OR NOT ENOUGH ARGUMENTS SPECIFIED
+.ENDC
+.IF	EQ,NARGS-1
+MOV	ARG1,R0
+EMT	53
+.ENDC
+.ENDM	.READBIN
+
+;------------------------ .READASC ------------------------
+
+.MACRO	.READASC	ARG1
+.NARG	NARGS
+.IF	NE,NARGS-1
+.ERROR	A	;EITHER TOO MANY OR NOT ENOUGH ARGUMENTS SPECIFIED
+.ENDC
+.IF	EQ,NARGS-1
+MOV	ARG1,R0
+EMT	54
+.ENDC
+.ENDM	.READASC
+
+;------------------------ .WRITEA ------------------------
+
+.MACRO	.WRITEA	ARG1
+.NARG	NARGS
+.IF	NE,NARGS-1
+.ERROR	A	;EITHER TOO MANY OR NOT ENOUGH ARGUMENTS SPECIFIED
+.ENDC
+.IF	EQ,NARGS-1
+MOV	ARG1,R0
+EMT	55
+.ENDC
+.ENDM	.WRITEA
+
+;------------------------ .LDPROG ------------------------
+
+.MACRO	.LDPROG	ARG1
+.NARG	NARGS
+.IF	NE,NARGS-1
+.ERROR	A	;EITHER TOO MANY OR NOT ENOUGH ARGUMENTS SPECIFIED
+.ENDC
+.IF	EQ,NARGS-1
+MOV	ARG1,R0
+EMT	56
+.ENDC
+.ENDM	.LDPROG
+
+
+
+;THE FOLLOWING MACROS GENERATE TRAP CALLS
+;**************************************************
+
+;;;	XXDP cusps use TRAP to manage an internal API
+;;;	The dispatcher is much the same as XXDP's EMT dispatcher
+;;;
+;;;	TRAP 0 is absent and in UPD2 and XTECO
+;;;	TRAP 1 ($TYPRAD) is here, but absent in UPD2/XTECO
+
+
+.MACRO	$TYPRAD	ARG1	;;; display rad50 word/spec?
+.NARG	NARGS
+.IF	NE,NARGS
+.NTYPE	NTYPE,ARG1
+.IF	NE,NTYPE
+MOV	ARG1,R0
+.ENDC
+.ENDC
+TRAP	1
+.ENDM	$TYPRAD
+
+
+.MACRO	$BCDCV	ARG1
+.NARG	NARGS
+.IF	NE,NARGS
+.NTYPE	NTYPE,ARG1
+.IF	NE,NTYPE
+MOV	ARG1,R0
+.ENDC
+.ENDC
+TRAP	2
+.ENDM	$BCDCV
+
+.MACRO	$DATUPK	ARG1	;;; unpack date?
+.NARG	NARGS
+.IF	NE,NARGS
+.NTYPE	NTYPE,ARG1
+.IF	NE,NTYPE
+MOV	ARG1,R0
+.ENDC
+.ENDC
+TRAP	3
+.ENDM	$DATUPK
+
+.MACRO	$BYTFIL	;;; byte fill or byte file
+TRAP	4
+.ENDM	$BYTFIL
+
+.MACRO $CLRBMP	;;; clear bitmap
+TRAP 5
+.ENDM $CLRBMP
+
+.MACRO	$BKREAD	;;; read block
+TRAP	6
+.ENDM	$BKREAD
+
+.MACRO	$RDDAT	;;; read data (formatted)
+TRAP	7
+.ENDM	$RDDAT
+
+.MACRO	$WRTDAT	;;; write data (formatted)
+TRAP	10
+.ENDM	$WRTDAT
+
+.MACRO	$BLKWRT	;;; write block (binary)
+TRAP	11
+.ENDM	$BLKWRT
+
+.MACRO	$WRTLC	;;; Write LC?
+TRAP	12
+.ENDM	$WRTLC
+
+.MACRO	$CLRBUF	;;; clear buffer
+TRAP	13
+.ENDM	$CLRBUF
+
+.MACRO	$PAKNAM	;;; pack rad50 name
+TRAP	14
+.ENDM	$PAKNAM
+
+;;;	15 $TYPNAM missing in UPD2
+
+.MACRO	$TYPNAM	;;; display rad50 name?
+TRAP	15
+.ENDM	$TYPNAM
+
+.MACRO	$MBUFAD	;;; monitor buffer address???
+TRAP	16
+.ENDM	$MBUFAD
+
+.MACRO	$CHKSUM	;;; calculate checksum
+TRAP	17
+.ENDM	$CHKSUM
+
+.MACRO	$BMOVE	;;; block move
+TRAP	20
+.ENDM	$BMOVE
+
+;;;	23 looks like a typo for 21 because 21 is missing and 
+;;;	is followed by 22 and 23. It's hard to see how these macro
+;;;	calls could be used in practice.
+
+.MACRO	$ABORT	ARG
+.IF NB ARG
+.TYPMSG	ARG
+.ENDC
+EMT	23
+.ENDM	$ABORT
+
+.MACRO $DTDEL	;;; DT? delete
+TRAP 22
+.ENDM $DTDEL
+
+.MACRO	$BOOT	;;; boot system
+TRAP	23
+.ENDM	$BOOT
+
+.MACRO	$CLRMAP	;;; clear bitmap
+TRAP	24
+.ENDM	$CLRMAP
+
+.MACRO	$ALOCBK	;;; allocate block
+TRAP	25
+.ENDM	$ALOCBK
+
+.MACRO	$ALLOC	;;; allocate ???
+TRAP	26
+.ENDM	$ALLOC
+
+.MACRO	$READMP	;;; read bitmap
+TRAP	27
+.ENDM $READMP
+
+.MACRO	$CLSMAP	;;; close bitmap
+TRAP	30
+.ENDM	$CLSMAP
+
+.MACRO	$WRTMAP	;;; write bitmap
+TRAP	31
+.ENDM	$WRTMAP
+
+;;;	32 missing here and in UPD2
+;;;	The remainder are present in both
+
+.MACRO	$STUFDS	;;; set UFD "S"?
+TRAP	33
+.ENDM	$STUFDS
+
+.MACRO	$CLOSE	;;; close file
+TRAP	34
+.ENDM	$CLOSE
+
+.MACRO	$DALSBK	;;; deallocate "S" start block?
+TRAP	35
+.ENDM	$DALSBK
+
+.MACRO	$DALLNK	;;; deallocate file link?
+TRAP	36
+.ENDM	$DALLNK
+
+.MACRO	$DALCTG	;;; deallocate contiguous file?
+TRAP	37
+.ENDM	$DALCTG
+
+.MACRO	$STMAPS	;;; set map "S"
+TRAP	40
+.ENDM	$STMAPS
+
+.LIST
+.LIST
