@@ -435,7 +435,7 @@
 	dlrl2$	= 200	;dl.dat	; RL02 
 .sbttl	boot engine						(boot)
 .asect
-x$xlow:	. = 0
+x$xlow:	. = 0			; 00000
 
 ;	XXDP boot enters at location zero, like everyone else
 
@@ -663,8 +663,8 @@ bo$geo:	clr	b$ocyl		; clear proto cylinder
 
 	.blkw	7		; boot round-up
 .sbttl	Init engine (low memory)				(init)
-.psect	xxdp			; location 1000
-x$xini:
+.psect	xxdp			; 
+x$xini:				; 01000
 
 ;	Init prologue
 
@@ -1006,7 +1006,7 @@ i$mxdp:	.ascii	|THIS IS XXDP+.  TYPE "H" OR "H/L" FOR HELP.|<cr><lf>
 	.word	0	;5240	;			(savm)(slip)(note)
 	.word	0	;5242	;
 
-;	IN$PDT - Parse date year-month-day
+;	IN$YMD - Parse date year-month-day
 ;
 ;	Convert DD-MON-YY to DOSbatch date format
 ;
@@ -1165,7 +1165,7 @@ in$iob:	movr	#d$riob,r5,5	; IOB
 i$mmon:	.asciz	<cr><lf>"CHMDLD0 XXDP+ DL MONITOR"
 	.even
 .sbttl	Batch engine						(batch)
-x$xbat:
+x$xbat:				; 06000
 	
 ;	Start of batch area
 ;	
@@ -1354,7 +1354,7 @@ bu$loa:	ParFld			; get "FILNAM"
 
 ;	Batch START program command
 ;
-;	S [/repeat] [address]
+;	S[/repeat] [address]
 
 bc$sta:	call	bu$sta		; get the start address
 	br	bu$act		; activate
@@ -1573,7 +1573,7 @@ b$aend:	.ascii	"END"<377>
 
 bc$ift:	ParFld			; r0 -> condition switch
 	 br	bu$nop		; no hope
-	call	cu$swi-$$	; parse chain condition
+	call	cu$cnd-$$	; parse chain condition
 	bcs	bu$fal		; false
 	fall	bu$tru		; 
 
@@ -1736,7 +1736,7 @@ bc$enb:	ParOct			; get a unit number
 
 	.blkw	172	;122.	; round-up to 10000
 .sbttl	Terminal					    (terminal)
-x$xtra:
+x$xtra:				; 10000
 
 ;	TE$PUT - Display a single character
 ;
@@ -1819,7 +1819,7 @@ te$ctl:	tstb	r0		; ^@ - null (GetCmd EPT)
 
 ;	GetLin - Get Command Line service			(EMT 0)
 ;
-;	GetLin inputs a terminal or batch file command line.
+;	GetLin inputs a terminal or batch file command line
 ;	GetLin restores the batch file input buffer and position if needed
 ;	PopBat triggers a buffer restore to return to a prior batch file
 ;
@@ -1913,7 +1913,7 @@ GetLin:	tstb	s$ybat		; in a chain file?
 	beq	90$		; no
 	inc	f$ipos		; yes - skip the lf position
 	ReaByt			; and gobble the lf byte
-				;
+				
 ;	Accumulate the batch file checksum
 ;
 ;	ReaBlk checksum (f$irck) is copied to f$isck at each end of line.
@@ -1922,7 +1922,7 @@ GetLin:	tstb	s$ybat		; in a chain file?
 ;	a valid block checksum.
 
 	mov	f$irck,f$isck	; save the block checksum
-
+				;
 90$:	mov	c$lnxt,r0	; fine - r0 -> start of line (first field)
 gl$sec:	bis	#cbit,sp.ps+2(sp); set return cbit (GetChk branches here)
 110$:	return
@@ -2326,7 +2326,7 @@ TerMod:	mov	#TPS,s$ytps	; csr
 ;	LoaSup - Load DRS-11 supervisor HSAA??.SYS service	(EMT 35)
 ;	
 ;	Batch mode activates supervisor directly
-;	Takes EMT return path (via cu$qvs return)
+;	Takes EMT return path (via cu$swi return)
 ;
 ;	CLI mode activates the supervisor via cu$act
 ;	Treats supervisor return as image exit, jumping to cl$cmd
@@ -2640,7 +2640,7 @@ c$ltst:	.word	cl$tst		; TEST
 10$:	.asciz	"SYSTEM.CCC"	; the system chain file
 	.even
 
-cl$tst:	call	cu$qvs		; parse /QV 
+cl$tst:	call	cu$swi		; store switches, check /QV
 	mov	pc,r2		;
 	add	#10$-.,r2	; "SYSTEM.CCC"
 	mov	c$llin,r0	; current line pointer
@@ -2670,7 +2670,7 @@ cl$chn:	ParFld			; get the field
 	dec	r2		; all three
 	bne	10$		;
 	clrb	(r0)		; terminate string
-	call	cu$qvs		; parse optional /QV
+	call	cu$swi		; parse switches, check /QV
 	fall	cu$chn
 
 ;	CU$CHN - CLI Chain/Test common
@@ -2691,25 +2691,28 @@ cu$chn:	mov	#mobat.,r2	; block = 6 (location 6000)
 20$:	jmp	cl$ifn		; invalid filename
 	.dsabl	lsb
 
-;	CU$QVS - Parse /QV quick verify switch
+;	CU$SWI - Parse/store switches, check for /QV
 ;
 ;	Called by CLI Chain and TEST commands to store switches
 ;	and to check for the /QV switch
 ;
-;	There is no error reported for unidentified switches	(note)
+;	There's no syntax checking here. Any trailing command field
+;	acts a trigger to copy that field and the remainder of the
+;	command line to the switch buffer. 24 bytes are reserved for
+;	switches (but, again, no check is made for overflow).
 
-cu$qvs:	mov	#s$yswi,r2	; /switch buffer
+cu$swi:	mov	#s$yswi,r2	; /switch buffer
 	add	s$yrel,r2	;
 	ParFld			; get an alphanumeric field
-	 br	10$		; which we got
-	dec	r0		; assume "/" precedes and back up to /
-10$:	movb	(r0)+,(r2)+	; copy zero terminated string
+	 br	10$		; end of line - no switches
+	dec	r0		; blindly backup to assumed "/" terminator
+10$:	movb	(r0)+,(r2)+	; copy field and remaining line
 	bne	10$		;
 				;
 	mov	#c$sqvs-20$,r0	; .ascii "QV"
 	add	pc,r0		;
-20$:	call	cu$swi		; parse the switch
-	bcs	cu$ret		; it wasn't "/QV" (and ignores others) (note)
+20$:	call	cu$cnd		; check the /QV condition
+	bcs	cu$ret		; it wasn't "/QV"
 	inc	s$yqvs		; set /QV quick verify switch
 cu$ret:	return			; (LoaSup return path passes through here)
 
@@ -2722,7 +2725,7 @@ cl$hlp:	ParFld
 	 br	10$		; is no "/L" field
 	cmpb	(r0),#'L	; lineprinter out?
 	bne	10$		; nope
-	LptMod			; use paper
+	LptMod			; yes - use paper
 				;
 10$:	mov	pc,r0		; "HELP.TXT"
 	add	#30$-.,r0	;
@@ -2748,7 +2751,7 @@ cl$hlp:	ParFld
 ;
 ;	F
 ;	000001<enter>		The fill count is unchanged
-
+;
 ;	F
 ;	000001 5		The fill count is changed to five
 
@@ -2841,8 +2844,8 @@ cu$loa:	ParFld			; get ye field 	(cu$run EPT)
 	clr	r1		; load address default
 	LoaFil			; and read another psuedo papertape
 	clrb	s$yloa		; disable display
-	return
-
+	return			;
+				;
 20$:	jmp	cl$ifn		; invalid file name
 
 
@@ -2861,7 +2864,7 @@ cl$sta:	call	cu$sta		; get a start address
 ;	in	command field
 ;
 ;		call	cu$sta
-;		bcs	fail	; note: bcs fail, bcc fine
+;		bcs	fail	; note: bcs fail, bcc fine	(note)
 ;	
 ;	fine	r0 	start address
 ;		s$ysta	start address or #1
@@ -2951,9 +2954,9 @@ cl$run:	ParFld			; get filespec
 20$:	jmp	cl$ifn		; invalid file name
 
 
-;	CU$SWI - Check Batch IF and CLI CHAIN/TEST /QV switches
+;	CU$CND - Check Batch IF and CLI CHAIN/TEST conditions
 ;
-;	CU$SWI sits just outside the CLI/Batch overlay region and is 
+;	CU$CND sits just outside the CLI/Batch overlay region and is 
 ;	called by both CLI and Batch routines.
 ;
 ;	in	r0 ->	candidate switch "XX"
@@ -2966,7 +2969,7 @@ cl$run:	ParFld			; get filespec
 ;		r0/r1	preserved
 ;		r2/r4	burnt
 
-cu$swi:	mov	#s$yswi-10$,r2	; the switch buffer
+cu$cnd:	mov	#s$yswi-10$,r2	; the switch buffer
 	add	pc,r2		; 
 10$:	tstb	(r2)		; end of switches?
 	beq	50$		; yes - fail
@@ -2990,7 +2993,7 @@ cu$swi:	mov	#s$yswi-10$,r2	; the switch buffer
 ;
 ;	EMT calling procedure:
 ;
-;	Registers are used to pass information to and from servicesi
+;	Registers are used to pass information to and from services
 ;	as required.
 ;
 ;	mov	arg1,r0
@@ -3227,7 +3230,7 @@ mo$chn:	movb	(r3)+,(r2)+	; copy chain area
 	return			; 12000-14000 / 152000-154000
 .sbttl	System Data & Communication area			(data)
 
-s$yswi:	.blkw	12.	;14110	;  batch/CLI switch buffer
+s$yswi:	.blkb	24.	;14110	;  batch/CLI switch buffer
 s$ygto:	.rept	58.	;14140	;  batch GOTO buffer		(hack)(note)
 	.word	123456		;  stack pattern
 	.endr			;  58. word stack
@@ -3728,6 +3731,7 @@ d$pmon:	.word	170.	;252	; first xmonitor block	    (savm)(boot)
 	.word	0	;	; local
 d$ptwc:	.word	0	;	; transaction word count
 
+
 ;	DR$TRA - Driver transfer function 
 ;
 ;	in	r5 ->	IOB
@@ -3856,6 +3860,7 @@ dr$tra:	mov	r0,-(sp)	; we do our own thing
 	mov	#m$srer,r0	; "? RD ERR" (abort routine relocates)
 	JmpAbt			; abort
 
+
 ;	DU$OPR - Initiate operation, wait and check errors
 ;
 ;	call	du$opr
@@ -3870,7 +3875,7 @@ du$wai:	bit	#dlERR$!dlGO$,(r0) ; error|ready
 10$:	return
 .sbttl	Get Device, Open File, Restore Driver functions		(driver)
 		
-;	DR$DEV - Get Device name/unit/media function
+;	DR$DEV - Get device name/unit/media function
 ;
 ;	in	r5 ->	IOB
 ;
@@ -4035,6 +4040,7 @@ du$res:	mov	dr.uni(r5),-(sp); .byte unit, function
 	mov	(sp)+,(r0)	; issue disk function
 	call	du$wai		; du$wai
 	return
+
 
 ;	Driver error messages
 
