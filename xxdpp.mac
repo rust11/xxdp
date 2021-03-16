@@ -281,16 +281,28 @@
 ;	in.50h	= 0	;1000	; 50 hertz flag
 ;	in.aut	= 2	;1002	; automated startup flag
 
+;	Low memory syscom variables
+;
+;	I've left these locations as absolute addresses.
+;
+;	@#40	.byte	= system device unit number
+;	@#41	.byte	= LMD - low media code
+;	@#42	.word	= batch diagnostic managed exit path
+;
+;	@#52	.word	job status word
+;
+	scMAN$ 	= 1	; Manual control flag (SMI/CMI)
+;	scXMA$	= 10000	; XM-monitor app (XXDP V2)
+;
+;	@#200	start:	default LDA start address
+;			patched to default "JMP @#2100" by LoaFil
+
 ;	Command line structure
 
 ;	cl.ptr	= 0		; command line base pointer
 ;	cl.len	= 2		; command line length
 ;	 cllen.	= 44. 	;54	; default command line length
 ;	 clavl.	= 42.	;52	; available characters
-
-;	Manual control (CMI/SMI)
-
-	scMAN$ 	= 1
 
 ; 	Device information block
 	
@@ -328,7 +340,7 @@
 
 ;	HOMBLK - XXDP MFD block
 
-	hbblk.	= 1		; block 1
+	hbblk.	= 1		; block 1 (for DL:)
 	hbbas.	= 1000		; disk byte address
 
 	hb.nxt	= 0	;0	; next block 	(always zero)
@@ -349,19 +361,19 @@
 
 ;	Directory entry
 
-	en.fil	= 0	;fil	; rad50 filename (0=>deleted)
-	en.nam	= 2	;nam	;
-	en.typ	= 4	;typ	;
-	en.dat	= 6	;	; file date and contiguous flag
-	en.ffb	= 12	;	; first-free byte
-	en.sta	= 14	;	; start block
-	en.len	= 16	;	; length in blocks
-	en.lst	= 20	;	; last block in use
-	en.flg	= 22	;	; flags
-	enbbs	= 24	;18.	;
+;	en.fil	= 0	;fil	; rad50 filename (0=>deleted)
+;	en.nam	= 2	;nam	;
+;	en.typ	= 4	;typ	;
+;	en.dat	= 6	;	; file date and contiguous flag
+;	en.ffb	= 12	;	; first-free byte
+;	en.sta	= 14	;	; start block
+;	en.len	= 16	;	; length in blocks
+;	en.lst	= 20	;	; last block in use
+;	en.flg	= 22	;	; flags
+;	enbbs	= 24	;18.	;
 
 ;	en.dat - XXDP/DOSbatch date
-;
+
 ;	date = (year*1000.) + day-in-year;
 ;
 ;	endat$	= 077777	; date field mask
@@ -802,11 +814,11 @@ i$nkwd:	.ascii	"  K "	;"28K "	; memory size filled in
 in$hgh:	mov	#s$ystk,sp	; use the (unrelocated) system stack
 	mov	pc,r0		;
 	add	#in$hgh-.,r0	; abort restarts us
-	SetAbt	;in$hgh		; (EMT vector-> low memory EM$ENG)   (note)
+	SetAbt	;in$hgh		; (EMT vector-> low memory EM$ENG)(note)
 
 	clr	r2		; 0:1000 trap catchers
 	mov	#2,r3		; 
-10$:	mov	r3,(r2)+	; 000000: .word	.+2
+10$:	mov	r3,(r2)+	; 000000: .word	.+2	; trap to @#2
 	clr	(r2)+		; 000002: .word	0	; aka HALT
 	add	#4,r3		; and so on
 	cmp	r2,#1000	; upto 1000
@@ -1152,8 +1164,9 @@ x$xbat:
 ;	Start of batch area
 ;	
 ;	The batch engine is copied to the overlay region for execution.
-;	Because of this all it's relative addresses that access
-;	the monitor outside it's local area need to be offset.
+;	Because of this all relative addresses that access the monitor
+;	outside its overlay area need to be offset, along with the
+;	addresses in the batch command dispatch table.
 
 	$$ = o$vreg-b$areg;4000	; offset for relative mode relocation
 				; 6000- 7414 - batch region
@@ -1307,6 +1320,8 @@ m$sber:	.asciz	"?ER"<cr><lf>	; Batch "?ER" (the only batch error message)
 ;
 ;	bc$loa	Batch Load command EPT
 ;	bu$loa	Batch Run command EPT
+;
+;	CL$RUN has a description of the filename parsing strategy.
 
 bc$loa:	incb	s$yloa-$$ 	; LOAD in-progress (not RUN)
 bu$loa:	ParFld			; get "FILNAM"
@@ -1404,9 +1419,9 @@ bu$exi:	mov	30$,sp		; restore stack
 
 ;	Batch RUN command
 ;
-;	See the CLI RUN command description for the algorithm here
-;
 ;	R file[/repeat][address]
+;
+;	CL$RUN has a description of the filename parsing strategy.
 
 bc$run:	ParFld			; get a filespec
 	 return			; filename error
@@ -1425,8 +1440,9 @@ bc$run:	ParFld			; get a filespec
 ;	The batch chain command must have an explicit file type	(note)
 ;
 ;	Batch officially supports one level of chain nesting.	(note)
-;	However, no checks are made to see if additional nesting takes
-;	place. More accurately, batch allows a single return level.
+;	However, no checks are made to see if additional nesting
+;	takes place. More accurately, batch allows a single 
+;	return level.
 
 bc$chn:	ParFld			; get a filespec
 	 br	10$		; fail
@@ -1452,9 +1468,9 @@ bc$chn:	ParFld			; get a filespec
 ;	label:
 ;
 ;	Batch first searches forward through the file. It rewinds   (note)
-;	to the beginning of the file if the forward search fails. If that
-;	forward search fails, it again rewinds, and so, forever. It may be
-;	yet another code space saving device.
+;	to the beginning of the file if the forward search fails.
+;	If that forward search fails, it again rewinds, and so on, 
+;	forever. It may be yet another code space saving device.
 ;
 ;	There's an omitted branch just before 40$ that saves another (note)
 ;	word, relying on the ParFld that follows to fail and branch
@@ -1583,7 +1599,6 @@ bu$tru:	ParFld			; get yet another field
 ;
 ;	For a false condition we need to search for the next
 ;	END statement (there is no nesting of IF-END).
-;
 
 bu$fal:	GetLin			; search chain file for "END"
 	 bcc	bu$nop		; EOF - we're all done
@@ -1591,8 +1606,9 @@ bu$fal:	GetLin			; search chain file for "END"
 
 ;	Batch END command
 ;
-;	I don't know why the batch END command comes here.
-;	The batch command dispatcher has
+;	I don't know why the batch END command comes here.	(note)
+;	The batch command dispatcher has already parsed "END".
+;	It looks like orphan code.
 
 bc$end:	mov	#b$aend-10$,r2	; END
 	add	pc,r2
@@ -2126,13 +2142,15 @@ ParOct:	ParFld			; r0 -> field
 ;
 ;	in	r0 ->	ascii "filnam.typ"
 ;
+;		OpnFil
+;
 ;	out	r1	burnt
 ;
-;	Formats the spec as space-filled template
+;	OpnFil formats the file spec as space-filled template
 ;	Where "_" represents the space, the name "XXX.SYS" becomes:
 ;
 ;	"XXX___.SYS"
-;	 0123456789"
+;	 0123456789
 
 OpnFil:	mov	#d$riob,r5	; IOB
 	add	s$yrel,r5	; r5 -> IOB
@@ -2176,13 +2194,13 @@ CloFil:	return			; much ado about nothing
 ;	Invalid characters are cheerfully converted to nonsense
 ;	Called only by SpcAsc
 ;
-; in	r0 =	rad50 word to translate
-;	r2 ->	output ascii (no zero byte terminator)
+;	in	r0 =	rad50 word to translate
+;		r2 ->	output ascii (no zero byte terminator)
 ;
 ;
-; out	r0	burnt
-; 	r2 ->	past ascii 
-;	r3/r4	burnt	
+;	out	r0	burnt
+;	 	r2 ->	past ascii 
+;		r3/r4	burnt	
 
 su$unp:	mov	pc,r4		;
 	add	#80$-.,r4	; rad50 divisors
@@ -2212,14 +2230,14 @@ su$unp:	mov	pc,r4		;
 
 ;	SetLin - Set command line service			(EMT 26)
 ;
-; in	r0	= buffer address
-;	r1	= buffer length
-;	r0=0	Use default defaults (c$lbuf, cllen.)
+;	in	r0	= buffer address
+;		r1	= buffer length
+;		r0=0	=> use defaults (c$lbuf, cllen.)
 ;
-;	SetLin
+;		SetLin
 ;
-; out	r0	= effective buffer address
-;	r1	= effective buffer length
+;	out	r0	= effective buffer address
+;		r1	= effective buffer length
 
 	cl.ptr	= 0		; command line base pointer
 	cl.len	= 2		; command line length
@@ -2935,9 +2953,10 @@ cl$run:	ParFld			; get filespec
 ;	 	call	cu$swi
 ;	
 ;	fail	bcs	fail
-;	fine	bcc	fine				(note bcc fine)
+;	fine	bcc	fine				(bcc fine)(note)
 ;
-;	r2/r4	burnt
+;		r0/r1	preserved
+;		r2/r4	burnt
 
 cu$swi:	mov	#s$yswi-10$,r2	; the switch buffer
 	add	pc,r2		; 
@@ -2968,8 +2987,26 @@ em$rst:	mov	#em$eng,@#v$eemt 	; rebuild EMT vector
 
 ;	EM$ENG - EMT dispatch engine
 ;
-;	r0 is undefined for many services
-;	r1 is wilful
+;	EMT calls:
+;
+;	mov	arg1,r0
+;	mov	arg2,r1
+;	mov	arg3,r2
+;	emt	xxx
+;      [br	error]		; 
+;      [bcc	error]	
+;
+;	bcs	okay	.gtcmd .rdbyt .rdwrd (.gtchk reverse?)
+;	bcc	ctrlc	
+;
+;	Register usage:
+;
+;	r5	IOB   saved (not saved by XXDP)
+;	r4	      saved
+;	r3	      saved
+;	r2	arg3  saved
+;	r1	arg2	    is carefully preserved
+;	r0	arg1
 
 	stack	r2,r3,r4,pc,ps
 em$eng:	mov	r4,-(sp)		; r5 shared
@@ -2989,7 +3026,7 @@ em$eng:	mov	r4,-(sp)		; r5 shared
 ;	Call EMT service		;
 ;					;
 	call	(r4)			;\call the thing
-	br	20$		;plain	;|don't alter return address
+	 br	20$		;plain	;|don't alter return address
 	 add	#2,sp.pc(sp)	;skip	;/propagate skip return
 					;
 20$:	mov	(sp)+,r2		; restore registers
@@ -3040,7 +3077,9 @@ e$mdis:	.word	GetLin	; 0  GetLin
 ;XXDPSM	.word		; 46 LoaDat (load Date command app)
 .sbttl	Monitor Restore, Overlay Read and Copy			(monitor)
 
-;	The CLI restore monitor copy area ends at 140000 (in mo$rea).
+;	MO$REA restores the monitor during image exit
+;	MO$CHN completes the CLI->Batch transition and return
+;	MO$REA does the I/O for MO$REA and MO$CHN
 ;
 ;	These are the monitor block numbers of the areas of interest
 ;
@@ -3069,13 +3108,11 @@ mo$rst:	mov	s$ytra,r0	;10000	; transient area
 	call	mo$rea		;	; restore 512. words
 	br	30$		;	; go say ".5K RESTORED"
 
-;	MO$REA - read 512. words from the monitor file
+;	MO$REA - Read 512. words from the monitor file
 ;
 ;	r2 =	block
 ;	r3 ->	buffer
 ;	512.	fixed word count
-;
-;	The call to DR.RST below 
 
 mo$rea:	mov	#d$riob,r5	; system IOB
 	add	s$yrel,r5	;
@@ -3122,34 +3159,34 @@ mo$chn:	movb	(r3)+,(r2)+	; copy chain area
 	mov	s$yper,r3	; r3 = -> 12000/152000
 	call	mo$rea		; read monitor CLI engine overlay and more
 	return			; 12000-14000 / 152000-154000
-.sbttl	System Data & Communication tables			(data)
+.sbttl	System Data & Communication area			(data)
 
 s$yswi:	.blkw	12.	;14110	;  batch/CLI switch buffer
 s$ygto:	.rept	58.	;14140	;  batch GOTO buffer		(hack)(note)
 	.word	123456		;  stack pattern
 	.endr			;  58. word stack
 s$ystk:			;14324	;  system stack top
-s$ytra:	.word	0;150000;14324	;  -> .5k transient area
-s$yper:	.word	0;152000;14326	;  -> permanent memory area
+s$ytra:	.word	0;150000;14324	;  -> .5k transient area	(init)
+s$yper:	.word	0;152000;14326	;  -> permanent memory area	(init)
 h$wltc:	.word	177546	;14330	;  line clock
 h$wkwp:	.word	172540	;14332	;  KW11P programmable clock
-s$yrel:	.word	0;140000;14334	;  relocation constant
+s$yrel:	.word	0;140000;14334	;  relocation constant		(init)
 s$yrpt:	.word	0	;14336	;  diagnostic repeat count
-s$ydev:	.word	0	;14340	;  -> .ascii "DD"
-s$ysup:	.word	0;137000;14342	;  ACT supervisor load address
-s$ytps:	.word	0;TPS	;14344	;  TPS/LPT csr pointer
-s$ytpb:	.word	0;TPB	;14346	;  TPB/LPB buffer pointer
+s$ydev:	.word	0	;14340	;  -> d$rdev: .ascii "DDu"<lmd>	(init)
+s$ysup:	.word	0;137000;14342	;  ACT supervisor load address	(init)
+s$ytps:	.word	0;TPS	;14344	;  TPS/LPT csr pointer		(init)
+s$ytpb:	.word	0;TPB	;14346	;  TPB/LPB buffer pointer	(init)
 f$ibct:	.word	0	;14350	;  ReaByt file byte count
-s$ytop:	.word	0;160000;14352	;  top of memory
+s$ytop:	.word	0;160000;14352	;  top of memory		(init)
 f$iptr:	.word	0	;14354	;  file buffer pointer
 f$ilck:	.word	0	;14356	;  LDA load file read checksum
-c$llin:	.word	0	;14360	;\ resident command pointer
-c$llen:	.word	0	;14362	;/ line length
+c$llin:	.word	0	;14360	;\ resident command pointer	(init)
+c$llen:	.word	0	;14362	;/ line length			(init)
 c$lnxt:	.word	0	;14364	;  points to next command field
 f$ipos:	.word	0	;14366	;  current file position
 f$isvp:	.word	0	;14370	;  saved/restored file position
 c$lfld:	.word	0	;14372	;  current field pointer
-	.word	0	;14374	;  ???
+	.word	0	;14374	;  ???				(note)
 s$ydat:	.word	0	;14376	;  system DOSbatch date
 s$yabt:	.word	0	;14400	;  setabt/jmpabt address
 s$yemt:	.word	0,0	;14402	;  saved EMT vector during image load
@@ -3157,12 +3194,12 @@ s$ysta:	.word	177777	;14406	;  image START command address and type
 s$yact:	.word	177777	;14410	;  image activate address
 f$irck:	.word	177777	;14412	;  ReaBlk checksum
 f$isck:	.word	0	;14414	;  Batch saved ReaBlk checksum
-s$y5ck:	.word	0	;14416	;  .5k area checksum
+s$y5ck:	.word	0	;14416	;  .5k area checksum		(init)
 				;  
 s$yloa:	.byte	0	;14420	;\ LOAD in-progress flag
 s$yrun:	.byte	0	;14421	;/ cli RUN in-progress flag
 s$yhlt:	.byte	0	;14422	;  halt after load flag		.	
-s$ypad:	.byte	12.;14	;14423	;  fill count (reset to 1)(preset)(note)
+s$ypad:	.byte	12.;14	;14423	;  fill count (post-init reset to 1)(preset)
 s$ycol:	.byte	0	;14424	;  column (for tabbing)
 s$ypnd:	.byte	0	;14425	;  pending input character
 s$ypop:	.byte	0	;14426	;  PopBat flag (i.e. not PshBat)
@@ -3190,11 +3227,11 @@ f$irec:	.blkw	256.-1	;14534	;| input record
 
 s$ycom:
 s$ycsr:	.word	0	;15534	;\ CSR address			(init)
-	.word	0	;15536	;| ???
-s$yuni:	.word	0	;15540	;| unit number			(init only)
-s$ycfg:	.word	0	;15542	;| config flags (LPT$)
-s$ylpt:	.word	0	;15544	;| LPT CSR if present
-s$ykwd:	.word	0	;15546	;| kwords memory size
+	.word	0	;15536	;| ???				(note)
+s$yuni:	.word	0	;15540	;| unit number			(init)
+s$ycfg:	.word	0	;15542	;| config flags (LPT$ etc)	(init)
+s$ylpt:	.word	0	;15544	;| LPT CSR if present		(init)
+s$ykwd:	.word	0	;15546	;| kwords memory size		(init)
 s$yltc:	.word	0	;15550	;|\ LTC ISR and block
 	.word	6	;15552	;|| LTC priority
 	.word	100	;15554	;|| LTC clock vector
@@ -3204,8 +3241,8 @@ s$ykwp:	.word	0	;15560	;|\ KWP ISR and block
  	.word	104	;15564	;|| KWP vector
 s$yktk:	.word	60.	;15566	;|/ KWP clock-ticks    (50hz=50.)(init)
 s$yqvs:	.word	0	;15570	;| /QV quick verify switch
-s$ybat:	.word	0	;15572	;| 1=batch mode and level
-s$ypgs:	.word	512.-1	;15574	;| MMU 32w-pages - 1 (777=16kw-1pg)
+s$ybat:	.word	0	;15572	;| 1+=batch mode and level
+s$ypgs:	.word	512.-1	;15574	;| MMU 32w-pages-1 (777=16kw-1pg)(init)
 s$yerr:	.word	0	;15576	;/ apps report errors to batch here
 
 ;	Driver area
@@ -3221,16 +3258,15 @@ d$rdis:	.word	dr$opn	;15614	;766	;\ dr.opn - open file	    (init)
 	.word	dr$rst	;15616	;770	;| dr.rst - restore monitor (init)
 	.word	dr$tra	;15620	;772	;| dr.tra - transfer	    (init)
 	.word	dr$dev	;15622	;774	;| dr.dev - device name	    (init)
-p$scsu:;.word	dlcsu.	;15624\	; 	;: CSR with unit in place   (preset)
-d$runi::.byte 	0	;15624/	;776 	;| dr.uni - device unit
+d$runi::.byte 	0	;15624/	;776 	;| dr.uni - device unit	    (boot)
 	.byte 	0	;15625	;777 	;| dr.sts - operation status
 IOB:
 d$riob:
-d$rcsr::.word	dlcsr.	;15626	; 00	;| CSR 			    
+d$rcsr::.word	dlcsr.	;15626	; 00	;| CSR 			    (boot)
 	.word	0	;15630	; 02	;| io.wct
 	.word	0	;15632	; 04	;| io.buf
 	.word	0	;15634	; 06	;| io.blk 
-	.word	d$pufd	;15636	; 10	;| io.ufd - relocated	(init)
+	.word	d$pufd	;15636	; 10	;| io.ufd - relocated	    (init)
 d$rend:					;/ end GetDrv copy area
 i$ospc:	.blkb 	12.;14	;15640	; 12	;  io.spc  .asciz "filnam.typ"<0>
 	;word	0	;15642	; 14	; 
@@ -3243,9 +3279,11 @@ i$ospc:	.blkb 	12.;14	;15640	; 12	;  io.spc  .asciz "filnam.typ"<0>
 ;	LoaFil - Load file service				(EMT 14)
 ;
 ;	in	r0 ->	ascii filespec
-;		r1 =	load address
+;		r1 =	load base address
 ;	
 ;		LoaFil
+;
+;	fine	r1 ->	activate address
 ;	
 ;	abort	r0 -> 	"? CKERR" (or "? RD ERR")
 
@@ -3360,7 +3398,8 @@ m$scon:	.asciz	"USE CPU CONSOLE TO START"<ht>
 ;
 ;	in	r5 ->	file IOB
 ;
-;	out	bcs	fine
+;		ReaWrd
+;		bcs	fine
 ;		bcc	fail
 ;
 ;	fine	r0	word
@@ -3444,7 +3483,7 @@ PutCha:	cmpb	r0,#lf		; linefeed?
 ReaNxt:	mov	f$inxt,io.blk(r5); advance to next block
 	beq	10$		; there is no next block
 	ReaBlk			; read it
-	 add	#2,(sp)		; we're always good
+	 add	#2,(sp)		; we're good
 10$:	return			; we ain't
 
 
