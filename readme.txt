@@ -1,4 +1,4 @@
-This project is an attempt to restore XXDP+ sources
+This project is an attempt to restore XXDP+ sources.
 
 XXDPP.MAC              - The restored source of the XXDP+ monitor 
 XXDPP.LST              - The listing file
@@ -16,7 +16,7 @@ XXDP was/is the diagnostic operating system for PDP-11 computers.
 This source file was created by reverse assembling the binary image
 of the XXDP+ HMDLD0 monitor found on XXDP23 distribution.
 
-XXDP constitutes the de factor definition of the PDP-11, as anyone
+XXDP constitutes the de facto definition of the PDP-11, as anyone
 who writes an emulator soon finds out. It's the toughest the PDP-11
 systems, case-hardened by its use on only partially functioning 
 systems.
