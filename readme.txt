@@ -14,7 +14,7 @@ Source introduction:
 
 XXDP was/is the diagnostic operating system for PDP-11 computers.
 This source file was created by reverse assembling the binary image
-of the XXDP+ HMDLD0 monitor found on XXDP22 distribution.
+of the XXDP+ HMDLD0 monitor found on XXDP23 distribution.
 
 XXDP constitutes the de facto definition of the PDP-11, as anyone
 who writes an emulator soon finds out. It's the toughest the PDP-11
